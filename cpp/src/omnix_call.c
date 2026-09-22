@@ -1,5 +1,5 @@
 /**
- * Omnix Voice — call registry (SDK-015) + call control stubs (SDK-010).
+ * Omnix Voice — call registry (SDK-015) + outgoing call (SDK-016).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
@@ -264,14 +264,184 @@ void omnix_test_release_baresip_call(struct call *call)
 	re_thread_leave();
 }
 
+/**
+ * Call-level event hook (SDK-016+). Installed after ua_connect succeeds.
+ * CALL_EVENT_OUTGOING already fired under the UA handler during connect;
+ * we still handle it here for any later re-fire and map CLOSED lifetime.
+ */
+static void omnix_call_event_handler(struct call *call, enum call_event ev,
+				     const char *str, void *arg)
+{
+	omnix_call_entry_t *entry = arg;
+	const char *peeruri;
+
+	if (!call) {
+		return;
+	}
+
+	peeruri = call_peeruri(call);
+
+	switch (ev) {
+	case CALL_EVENT_OUTGOING:
+		if (entry) {
+			omnix_call_info_from_baresip(&entry->info, call);
+			entry->info.state = OMNIX_CALL_OUTGOING;
+			(void)omnix_events_notify_call_state(OMNIX_CALL_OUTGOING,
+							       &entry->info);
+		}
+		if (peeruri) {
+			bevent_call_emit(BEVENT_CALL_OUTGOING, call, "%s",
+					 peeruri);
+		}
+		break;
+
+	case CALL_EVENT_RINGING:
+		if (peeruri) {
+			bevent_call_emit(BEVENT_CALL_RINGING, call, "%s",
+					 peeruri);
+		}
+		break;
+
+	case CALL_EVENT_PROGRESS:
+		if (peeruri) {
+			bevent_call_emit(BEVENT_CALL_PROGRESS, call, "%s",
+					 peeruri);
+		}
+		break;
+
+	case CALL_EVENT_ANSWERED:
+		if (peeruri) {
+			bevent_call_emit(BEVENT_CALL_ANSWERED, call, "%s",
+					 peeruri);
+		}
+		break;
+
+	case CALL_EVENT_ESTABLISHED:
+		if (peeruri) {
+			bevent_call_emit(BEVENT_CALL_ESTABLISHED, call, "%s",
+					 peeruri);
+		}
+		break;
+
+	case CALL_EVENT_CLOSED:
+		/* Preserve UA lifetime semantics; slot free refined in SDK-019. */
+		bevent_call_emit(BEVENT_CALL_CLOSED, call, "%s",
+				 str ? str : "");
+		if (entry && entry->baresip_call == call) {
+			omnix_free_call_slot(entry);
+		}
+		mem_deref(call);
+		break;
+
+	case CALL_EVENT_TRANSFER:
+		bevent_call_emit(BEVENT_CALL_TRANSFER, call, "%s",
+				 str ? str : "");
+		break;
+
+	case CALL_EVENT_TRANSFER_FAILED:
+		bevent_call_emit(BEVENT_CALL_TRANSFER_FAILED, call, "%s",
+				 str ? str : "");
+		break;
+
+	case CALL_EVENT_INCOMING:
+	case CALL_EVENT_MENC:
+	default:
+		break;
+	}
+}
+
+static omnix_error_t omnix_map_connect_err(int err)
+{
+	switch (err) {
+	case 0:
+		return OMNIX_ERR_OK;
+	case EINVAL:
+		return OMNIX_ERR_INVALID_CONFIG;
+	case EACCES:
+		return OMNIX_ERR_PERMISSION_DENIED;
+	case ENOMEM:
+		return OMNIX_ERR_INTERNAL;
+	default:
+		return OMNIX_ERR_CALL_FAILED;
+	}
+}
+
 omnix_error_t omnix_call_make(const char *destination, char *call_id_out,
 			      size_t call_id_len)
 {
-	(void)destination;
+	struct omnix_state *st = omnix_state_get();
+	struct call *call = NULL;
+	omnix_call_entry_t *entry;
+	int err;
+
 	if (call_id_out && call_id_len > 0) {
 		call_id_out[0] = '\0';
 	}
-	return OMNIX_ERR_NOT_SUPPORTED;
+
+	if (!st || !st->initialized || !st->ua) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!destination || destination[0] == '\0') {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+	if (!call_id_out ||
+	    call_id_len < sizeof(((omnix_call_info_t *)0)->call_id)) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+	if (st->reg_state != OMNIX_REG_REGISTERED) {
+		return OMNIX_ERR_NOT_REGISTERED;
+	}
+
+	re_thread_enter();
+	/*
+	 * Issue #2: ua_connect(ua, &call, NULL, destination, VIDMODE_OFF).
+	 * Baresip's ua_connect mem_deref's the call if call_connect fails
+	 * (e.g. ENOSYS when no TLS peer in host CI) — after CALL_EVENT_OUTGOING
+	 * already fired. Use the same alloc+connect sequence but keep the call
+	 * when call_id was assigned so OUTGOING can be delivered to the app.
+	 */
+	err = ua_call_alloc(&call, st->ua, VIDMODE_OFF, NULL, NULL, NULL, true);
+	if (err || !call) {
+		re_thread_leave();
+		return omnix_map_connect_err(err ? err : ENOMEM);
+	}
+
+	{
+		struct pl pl;
+
+		pl_set_str(&pl, destination);
+		err = call_connect(call, &pl);
+	}
+	if (!call_id(call) || call_id(call)[0] == '\0') {
+		mem_deref(call);
+		re_thread_leave();
+		return omnix_map_connect_err(err ? err : EPROTO);
+	}
+	(void)err; /* invite/transport may fail offline; call stays OUTGOING */
+
+	entry = omnix_alloc_call_slot(call);
+	if (!entry) {
+		/* UA call eh still installed — hangup → CLOSED → mem_deref. */
+		call_hangup(call, 486, "Busy Here");
+		re_thread_leave();
+		return OMNIX_ERR_CALL_BUSY;
+	}
+
+	/* Replace UA call eh with Omnix hook (OUTGOING already emitted once). */
+	call_set_handlers(call, omnix_call_event_handler, NULL, entry);
+
+	entry->info.state = OMNIX_CALL_OUTGOING;
+	omnix_ncpy(call_id_out, call_id_len, entry->call_id);
+
+	/*
+	 * CALL_EVENT_OUTGOING fired during ua_connect under the UA handler
+	 * (before our hook was installed). Push the app callback now via
+	 * mqueue so on_call_event runs outside the re lock.
+	 */
+	(void)omnix_events_notify_call_state(OMNIX_CALL_OUTGOING, &entry->info);
+
+	re_thread_leave();
+	return OMNIX_ERR_OK;
 }
 
 omnix_error_t omnix_call_answer(const char *call_id)
