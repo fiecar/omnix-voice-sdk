@@ -62,7 +62,7 @@ const char *omnix_test_account_mediaenc(void);
 const char *omnix_test_account_auth_user(void);
 const char *omnix_test_account_display_name(void);
 const char *omnix_test_account_outbound(void);
-/* kind: 0=REGISTER_OK, 1=REGISTER_FAIL, 2=UNREGISTERING */
+/* kind: 0=REGISTER_OK, 1=REGISTER_FAIL, 2=UNREGISTERING, 3=REGISTERING */
 int omnix_test_inject_reg_bevent(int kind, const char *text);
 
 /* Subsystems */
