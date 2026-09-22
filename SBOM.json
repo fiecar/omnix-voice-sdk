@@ -1,0 +1,87 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "omnix-voice-sdk",
+  "documentNamespace": "https://github.com/fiecar/omnix-voice-sdk/spdx/omnix-voice-sdk",
+  "creationInfo": {
+    "licenseListVersion": "3.28",
+    "creators": [
+      "Tool: syft-1.52.0",
+      "Tool: omnix-enrich-sbom-1.0.0"
+    ],
+    "created": "1970-01-01T00:00:00Z"
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-omnix-voice-sdk",
+      "name": "omnix-voice-sdk",
+      "versionInfo": "0.0.0-dev",
+      "downloadLocation": "git+https://github.com/fiecar/omnix-voice-sdk",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "copyrightText": "NOASSERTION",
+      "supplier": "NOASSERTION",
+      "externalRefs": [],
+      "homepage": "https://github.com/fiecar/omnix-voice-sdk"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-baresip",
+      "name": "baresip",
+      "versionInfo": "4.11.0",
+      "downloadLocation": "https://github.com/baresip/baresip/archive/3d30821f099925d24167f8a99e93ba4d1be98599.tar.gz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "supplier": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/baresip@3d30821f099925d24167f8a99e93ba4d1be98599?vcs_url=https%3A%2F%2Fgithub.com%2Fbaresip%2Fbaresip"
+        }
+      ],
+      "homepage": "https://github.com/baresip/baresip",
+      "comment": "vendored commit 3d30821f099925d24167f8a99e93ba4d1be98599"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-re",
+      "name": "re",
+      "versionInfo": "4.11.0",
+      "downloadLocation": "https://github.com/baresip/re/archive/ceefe9ff499aa1bcfb6255aff1737434dd385322.tar.gz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "supplier": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/re@ceefe9ff499aa1bcfb6255aff1737434dd385322?vcs_url=https%3A%2F%2Fgithub.com%2Fbaresip%2Fre"
+        }
+      ],
+      "homepage": "https://github.com/baresip/re",
+      "comment": "vendored commit ceefe9ff499aa1bcfb6255aff1737434dd385322"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Package-omnix-voice-sdk"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-omnix-voice-sdk",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-baresip"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-baresip",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-re"
+    }
+  ]
+}
