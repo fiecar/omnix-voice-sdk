@@ -19,10 +19,10 @@
       "version": "v4.11.0",
       "commit": "ceefe9ff499aa1bcfb6255aff1737434dd385322",
       "downloadUrl": "https://github.com/baresip/re/archive/ceefe9ff499aa1bcfb6255aff1737434dd385322.tar.gz",
-      "importDate": "",
+      "importDate": "2026-09-23",
       "license": "BSD-3-Clause",
       "licenseFile": "third_party/re/LICENSE",
-      "archiveSha256": "",
+      "archiveSha256": "a74a96cddb0284261dcdb6ca7728dd1609549e576075fa192f289e1abf523faa",
       "vendoredPath": "third_party/re"
     }
   ]
