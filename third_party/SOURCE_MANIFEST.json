@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "component": "baresip",
+      "repository": "https://github.com/baresip/baresip",
+      "version": "v4.11.0",
+      "commit": "3d30821f099925d24167f8a99e93ba4d1be98599",
+      "downloadUrl": "https://github.com/baresip/baresip/archive/3d30821f099925d24167f8a99e93ba4d1be98599.tar.gz",
+      "importDate": "2026-09-23",
+      "license": "BSD-3-Clause",
+      "licenseFile": "third_party/baresip/LICENSE",
+      "archiveSha256": "148d0c743a71af19a436dba17c5d33a881e1c5e250ab100cf6b4729f0c7aa82c",
+      "vendoredPath": "third_party/baresip"
+    },
+    {
+      "component": "re",
+      "repository": "https://github.com/baresip/re",
+      "version": "v4.11.0",
+      "commit": "ceefe9ff499aa1bcfb6255aff1737434dd385322",
+      "downloadUrl": "https://github.com/baresip/re/archive/ceefe9ff499aa1bcfb6255aff1737434dd385322.tar.gz",
+      "importDate": "",
+      "license": "BSD-3-Clause",
+      "licenseFile": "third_party/re/LICENSE",
+      "archiveSha256": "",
+      "vendoredPath": "third_party/re"
+    }
+  ]
+}
