@@ -156,7 +156,7 @@ jobs:
       - name: Configure + build host native + tests
         run: |
           cmake -S cpp -B build/host -G Ninja -DSTATIC=ON -DOMNIX_BUILD_TESTS=ON
-          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events test_call_model test_outgoing_call test_incoming_call -j"$(nproc)"
+          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events test_call_model test_outgoing_call test_incoming_call test_answer_reject -j"$(nproc)"
 
       - name: Run log redaction unit test
         run: |
@@ -189,6 +189,10 @@ jobs:
       - name: Run incoming call unit test
         run: |
           ./build/host/test_incoming_call
+
+      - name: Run answer/reject unit test
+        run: |
+          ./build/host/test_answer_reject
 
       - name: API leakage check
         run: |
