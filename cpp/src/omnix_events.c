@@ -205,6 +205,14 @@ static void omnix_bevent_handler(enum bevent_ev ev, struct bevent *event,
 		omnix_reg_apply(OMNIX_REG_UNREGISTERED, 0, NULL);
 		break;
 
+	case BEVENT_CALL_INCOMING: {
+		/* SDK-017: UA CALL_EVENT_INCOMING → BEVENT_CALL_INCOMING. */
+		struct call *call = bevent_get_call(event);
+
+		omnix_call_handle_incoming(call);
+		break;
+	}
+
 	default:
 		break;
 	}
