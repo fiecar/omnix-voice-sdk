@@ -18,3 +18,8 @@ Machine-readable source of truth after import:
 
 Do not download from floating branches (`main` / `master`).
 Do not upgrade foundational dependencies without an approved Issue #1 change.
+
+## Imported components
+
+<!-- IMPORT:baresip -->
+baresip: tag=v4.11.0, commit=3d30821f099925d24167f8a99e93ba4d1be98599, imported=2026-09-23, license=BSD-3-Clause, archive-sha256=148d0c743a71af19a436dba17c5d33a881e1c5e250ab100cf6b4729f0c7aa82c
