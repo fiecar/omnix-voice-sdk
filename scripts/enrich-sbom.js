@@ -147,7 +147,7 @@ function main() {
   if (!byName.baresip) fail("baresip missing from enriched packages");
   if (!byName.re) fail("re missing from enriched packages");
 
-  // Omnix -> baresip -> re
+  // Omnix -> baresip -> re; Omnix -> openssl (when present)
   rels.push({
     spdxElementId: omnixId,
     relationshipType: "DEPENDS_ON",
@@ -158,9 +158,16 @@ function main() {
     relationshipType: "DEPENDS_ON",
     relatedSpdxElement: byName.re,
   });
+  if (byName.openssl) {
+    rels.push({
+      spdxElementId: omnixId,
+      relationshipType: "DEPENDS_ON",
+      relatedSpdxElement: byName.openssl,
+    });
+  }
 
-  // Guard: no false current deps
-  const forbidden = ["openssl", "libopus", "opus", "react-native", "react_native"];
+  // Guard: no false current deps (planned-but-absent only)
+  const forbidden = ["libopus", "opus", "react-native", "react_native"];
   for (const p of packages) {
     const n = String(p.name).toLowerCase();
     if (forbidden.some((f) => n === f || n.includes(f))) {

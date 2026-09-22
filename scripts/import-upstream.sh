@@ -229,18 +229,20 @@ mapfile -t TOP < <(find "$EXTRACT" -mindepth 1 -maxdepth 1 -type d)
 SOURCE_TREE="${TOP[0]}"
 
 LICENSE_SRC=""
-if [[ -f "$SOURCE_TREE/LICENSE" ]]; then
-  LICENSE_SRC="$SOURCE_TREE/LICENSE"
-elif [[ -f "$SOURCE_TREE/COPYING" ]]; then
-  LICENSE_SRC="$SOURCE_TREE/COPYING"
-else
-  fail "LICENSE/COPYING missing in extracted tree"
-fi
+for cand in LICENSE LICENSE.txt COPYING; do
+  if [[ -f "$SOURCE_TREE/$cand" ]]; then
+    LICENSE_SRC="$SOURCE_TREE/$cand"
+    break
+  fi
+done
+[[ -n "$LICENSE_SRC" ]] || fail "LICENSE/LICENSE.txt/COPYING missing in extracted tree"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 tar -cf - -C "$SOURCE_TREE" . | tar -xf - -C "$STAGE"
-[[ -f "$STAGE/LICENSE" || -f "$STAGE/COPYING" ]] || fail "LICENSE missing after staging"
+if [[ ! -f "$STAGE/LICENSE" && ! -f "$STAGE/LICENSE.txt" && ! -f "$STAGE/COPYING" ]]; then
+  fail "LICENSE missing after staging"
+fi
 
 BACKUP=""
 mkdir -p "$(dirname "$VENDORED_PATH")"
@@ -264,11 +266,15 @@ update_manifest_fields "$COMPONENT" "$COMPUTED" "$IMPORT_DATE"
 
 mkdir -p "$ROOT/LICENSES"
 LICENSE_DEST="$ROOT/LICENSES/${COMPONENT}-LICENSE.txt"
-if [[ -f "$VENDORED_PATH/LICENSE" ]]; then
-  cp -f "$VENDORED_PATH/LICENSE" "$LICENSE_DEST"
-else
-  cp -f "$VENDORED_PATH/COPYING" "$LICENSE_DEST"
-fi
+LICENSE_VENDORED=""
+for cand in LICENSE LICENSE.txt COPYING; do
+  if [[ -f "$VENDORED_PATH/$cand" ]]; then
+    LICENSE_VENDORED="$VENDORED_PATH/$cand"
+    break
+  fi
+done
+[[ -n "$LICENSE_VENDORED" ]] || fail "LICENSE missing in vendored tree for $COMPONENT"
+cp -f "$LICENSE_VENDORED" "$LICENSE_DEST"
 
 write_sha256sums
 write_tree_sha256sums

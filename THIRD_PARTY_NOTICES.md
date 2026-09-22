@@ -113,14 +113,34 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## OpenSSL (placeholder — SDK-066)
+## OpenSSL
 
 | Field | Value |
 |-------|-------|
-| Component | OpenSSL |
-| Planned version | 3.5.x LTS (exact patch pinned at import) |
-| Planned license | Apache-2.0 |
-| Status | **Not yet imported.** Attribution and `LICENSES/openssl-LICENSE.txt` will be filled by SDK-066. |
+| Component | openssl |
+| Repository | https://github.com/openssl/openssl |
+| Version | openssl-3.5.8 (OpenSSL 3.5.x LTS) |
+| Commit | `f4dc4d58b48d346a8270183f89acf826d459b0ca` |
+| License | Apache-2.0 |
+| License file | `LICENSES/openssl-LICENSE.txt` |
+| Vendored path | `third_party/openssl/` |
+
+### Copyright notice and license
+
+OpenSSL 3.5.8 is licensed under the Apache License 2.0. The complete verbatim
+license text is distributed with Omnix Voice binaries as
+`LICENSES/openssl-LICENSE.txt` (copied from `third_party/openssl/LICENSE.txt`).
+
+```
+                                 Apache License
+                           Version 2.0, January 2004
+                        https://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   Copyright notice and full terms: see LICENSES/openssl-LICENSE.txt
+   (Apache License Version 2.0).
+```
 
 ---
 
