@@ -16,10 +16,19 @@ extern "C" {
 
 struct omnix_state {
 	bool initialized;
+	bool re_thread_started;
 	omnix_reg_state_t reg_state;
-	omnix_config_t config; /* callback pointers + non-secret config copies */
+	omnix_config_t config; /* callbacks + non-secret config (no password) */
+	/* Fingerprint strings for idempotent omnix_init (owned, heap). */
+	char *fp_sip_server;
+	char *fp_sip_user;
+	char *fp_auth_user;
+	char *fp_display_name;
+	char *fp_stun_server;
+	char *fp_audio_module;
+	char *fp_codecs;
 	char *password_for_filter; /* Omnix-owned copy used only for log redaction */
-	void *mqueue; /* opaque: struct mqueue* when wired (SDK-011+) */
+	void *mqueue; /* opaque: struct mqueue* */
 };
 
 struct omnix_state *omnix_state_get(void);
@@ -40,11 +49,16 @@ void omnix_test_reset_last_log(void);
 const char *omnix_test_last_log(void);
 void omnix_test_emit_via_log_path(const char *msg);
 
-/* Subsystem stubs (filled in later tasks) */
+/* Subsystems */
 omnix_error_t omnix_account_setup(const omnix_config_t *config);
 void omnix_account_teardown(void);
 omnix_error_t omnix_events_init(void);
 void omnix_events_shutdown(void);
+int omnix_events_request_ready_signal(void);
+int omnix_events_request_shutdown(void);
+
+/* Lifecycle helpers (SDK-011) — signal that re_main is polling */
+void omnix_lifecycle_on_re_ready(void);
 
 #ifdef __cplusplus
 }

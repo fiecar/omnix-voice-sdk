@@ -207,6 +207,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_log_redaction PRIVATE omnix_voice)
+
+  add_executable(test_lifecycle
+    "${OMNIX_REPO_ROOT}/tests/native/test_lifecycle.c"
+  )
+  target_include_directories(test_lifecycle PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_lifecycle PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary
