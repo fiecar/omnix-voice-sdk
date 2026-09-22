@@ -365,7 +365,9 @@ int omnix_events_notify_reg_state(omnix_reg_state_t state, int sip_code,
 
 /**
  * Test helper: inject a registration bevent as if from Baresip.
- * kind: 0=REGISTER_OK, 1=REGISTER_FAIL, 2=UNREGISTERING.
+ * kind: 0=REGISTER_OK, 1=REGISTER_FAIL, 2=UNREGISTERING, 3=REGISTERING.
+ * Note: Baresip 4.11 has no BEVENT_UNREGISTERED; UNREGISTERING (and
+ * expire=0 REGISTER_OK while unregister_pending) map to OMNIX_REG_UNREGISTERED.
  */
 int omnix_test_inject_reg_bevent(int kind, const char *text)
 {
@@ -386,6 +388,9 @@ int omnix_test_inject_reg_bevent(int kind, const char *text)
 		break;
 	case 2:
 		ev = BEVENT_UNREGISTERING;
+		break;
+	case 3:
+		ev = BEVENT_REGISTERING;
 		break;
 	default:
 		return EINVAL;
