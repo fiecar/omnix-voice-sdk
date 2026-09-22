@@ -101,6 +101,9 @@ int omnix_events_request_shutdown(void);
 int omnix_events_notify_registering(void);
 int omnix_events_notify_reg_state(omnix_reg_state_t state, int sip_code,
 				  const char *reason);
+/* SDK-016: enqueue on_call_event (outside re lock via mqueue). */
+int omnix_events_notify_call_state(omnix_call_state_t state,
+				   const omnix_call_info_t *info);
 
 /* Lifecycle helpers (SDK-011) — signal that re_main is polling */
 void omnix_lifecycle_on_re_ready(void);

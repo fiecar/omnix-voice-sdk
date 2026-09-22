@@ -16,12 +16,18 @@ enum {
 	OMNIX_MQ_RE_READY = 1,
 	OMNIX_MQ_SHUTDOWN = 2,
 	OMNIX_MQ_REG_STATE = 3,
+	OMNIX_MQ_CALL_STATE = 4,
 };
 
 struct omnix_reg_notify {
 	omnix_reg_state_t state;
 	int sip_code;
 	char reason[160];
+};
+
+struct omnix_call_notify {
+	omnix_call_state_t state;
+	omnix_call_info_t info;
 };
 
 static bool g_bevent_registered;
@@ -244,8 +250,24 @@ static void omnix_mqueue_handler(int id, void *data, void *arg)
 		mem_deref(n);
 		break;
 	}
+	case OMNIX_MQ_CALL_STATE: {
+		struct omnix_call_notify *n = data;
+		struct omnix_state *st = omnix_state_get();
+		omnix_call_event_cb cb;
+		void *ctx;
+
+		if (n && st) {
+			cb = st->config.on_call_event;
+			ctx = st->config.ctx;
+			if (cb) {
+				cb(n->state, &n->info, ctx);
+			}
+		}
+		mem_deref(n);
+		break;
+	}
 	default:
-		/* Call command IDs land in later SDK tasks. */
+		/* Call *command* IDs land in later SDK tasks. */
 		break;
 	}
 }
@@ -361,6 +383,40 @@ int omnix_events_notify_reg_state(omnix_reg_state_t state, int sip_code,
 		st->unregister_pending = false;
 	}
 	return omnix_events_push_reg_state(state, sip_code, reason);
+}
+
+/**
+ * Enqueue on_call_event via mqueue (safe from re thread / app thread).
+ * Copies call info so the payload outlives the call registry update.
+ */
+int omnix_events_notify_call_state(omnix_call_state_t state,
+				   const omnix_call_info_t *info)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct omnix_call_notify *n;
+	struct mqueue *mq;
+	int err;
+
+	if (!st || !st->mqueue || !info) {
+		return EINVAL;
+	}
+	if (st->shutting_down) {
+		return 0;
+	}
+	mq = st->mqueue;
+
+	n = mem_zalloc(sizeof(*n), NULL);
+	if (!n) {
+		return ENOMEM;
+	}
+	n->state = state;
+	n->info = *info;
+
+	err = mqueue_push(mq, OMNIX_MQ_CALL_STATE, n);
+	if (err) {
+		mem_deref(n);
+	}
+	return err;
 }
 
 /**
