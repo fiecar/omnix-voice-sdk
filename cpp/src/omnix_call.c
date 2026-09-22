@@ -1,8 +1,9 @@
 /**
- * Omnix Voice — call registry (SDK-015) + outgoing call (SDK-016).
+ * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
+ * Incoming: foreground lifecycle only (no PushKit/FCM/killed-app wake-up).
  */
 #include "omnix_internal.h"
 
@@ -265,6 +266,34 @@ void omnix_test_release_baresip_call(struct call *call)
 }
 
 /**
+ * Test helper (SDK-017): allocate a call with id/peer, then emit
+ * BEVENT_CALL_INCOMING so omnix_bevent_handler runs the incoming path
+ * without a live SIP INVITE (host CI has no TLS peer).
+ */
+int omnix_test_inject_incoming_bevent(const char *peer_uri)
+{
+	struct call *call = NULL;
+	const char *peer;
+	int err;
+
+	err = omnix_test_make_baresip_outgoing_call(&call, peer_uri);
+	if (err || !call) {
+		return err ? err : EINVAL;
+	}
+
+	peer = call_peeruri(call);
+	if (!peer || peer[0] == '\0') {
+		peer = peer_uri;
+	}
+
+	re_thread_enter();
+	err = bevent_call_emit(BEVENT_CALL_INCOMING, call, "%s",
+			       peer ? peer : "");
+	re_thread_leave();
+	return err;
+}
+
+/**
  * Call-level event hook (SDK-016+). Installed after ua_connect succeeds.
  * CALL_EVENT_OUTGOING already fired under the UA handler during connect;
  * we still handle it here for any later re-fire and map CLOSED lifetime.
@@ -344,10 +373,51 @@ static void omnix_call_event_handler(struct call *call, enum call_event ev,
 		break;
 
 	case CALL_EVENT_INCOMING:
+		/*
+		 * Primary INCOMING path is BEVENT_CALL_INCOMING →
+		 * omnix_call_handle_incoming (handlers replaced after that).
+		 * Re-fire here if our hook already owns the call.
+		 */
+		if (entry) {
+			omnix_call_info_from_baresip(&entry->info, call);
+			entry->info.state = OMNIX_CALL_INCOMING;
+			entry->info.is_outgoing = false;
+			(void)omnix_events_notify_call_state(OMNIX_CALL_INCOMING,
+							       &entry->info);
+		}
+		break;
+
 	case CALL_EVENT_MENC:
 	default:
 		break;
 	}
+}
+
+/**
+ * SDK-017: BEVENT_CALL_INCOMING (UA CALL_EVENT_INCOMING) while process is
+ * alive / SDK registered. Must run under the re lock; app callback via mqueue.
+ */
+void omnix_call_handle_incoming(struct call *call)
+{
+	omnix_call_entry_t *entry;
+
+	if (!call) {
+		return;
+	}
+
+	entry = omnix_alloc_call_slot(call);
+	if (!entry) {
+		call_hangup(call, 486, "Busy Here");
+		return;
+	}
+
+	call_set_handlers(call, omnix_call_event_handler, NULL, entry);
+
+	omnix_call_info_from_baresip(&entry->info, call);
+	entry->info.state = OMNIX_CALL_INCOMING;
+	entry->info.is_outgoing = false;
+
+	(void)omnix_events_notify_call_state(OMNIX_CALL_INCOMING, &entry->info);
 }
 
 static omnix_error_t omnix_map_connect_err(int err)

@@ -89,6 +89,11 @@ omnix_call_entry_t *omnix_test_install_call_slot(const char *call_id,
 int omnix_test_make_baresip_outgoing_call(struct call **callp,
 					  const char *peer_uri);
 void omnix_test_release_baresip_call(struct call *call);
+/* Test/SDK-017: emit BEVENT_CALL_INCOMING for a allocated call (no INVITE). */
+int omnix_test_inject_incoming_bevent(const char *peer_uri);
+
+/* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
+void omnix_call_handle_incoming(struct call *call);
 
 /* Subsystems */
 omnix_error_t omnix_account_setup(const omnix_config_t *config);
