@@ -85,3 +85,51 @@ jobs:
           path: build/openssl-android/
           if-no-files-found: error
           retention-days: 30
+
+  # SDK-009: static libre.a + libbaresip.a + stub libomnix_voice via NDK
+  native-android-arm64:
+    name: Native static (android-arm64)
+    needs: openssl-android-static
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      NDK_VERSION: r29
+      ANDROID_API: '26'
+      ABI: arm64-v8a
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake
+
+      - name: Setup Android NDK (pinned ≥ r28)
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          link-to-sdk: false
+
+      - name: Download OpenSSL Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openssl-android-${{ github.sha }}
+          path: build/openssl-android
+
+      - name: Build libre.a + libbaresip.a (arm64-v8a)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          test -f "build/openssl-android/${ABI}/lib/libssl.a"
+          test -f "build/openssl-android/${ABI}/lib/libcrypto.a"
+          chmod +x scripts/build-native-android.sh
+          scripts/build-native-android.sh
+          # Acceptance: static archives present; third_party untouched by build
+          test -n "$(find build/android-${ABI} -name 'libre.a' -o -name 're.a' | head -n1)"
+          test -n "$(find build/android-${ABI} -name 'libbaresip.a' -o -name 'baresip.a' | head -n1)"
+          test -f cpp/include/omnix_voice/omnix_voice.h
+          test -f cpp/include/omnix_voice/omnix_types.h
+          test -f cpp/src/omnix_voice.c
+          test -f cpp/CMakeLists.txt
