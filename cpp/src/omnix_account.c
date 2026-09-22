@@ -1,29 +1,207 @@
 /**
- * Omnix Voice — account stub (SDK-010).
- * Full UA/account wiring lands in SDK-012. Password wipe contract is live now.
+ * Omnix Voice — SIP account / UA from omnix_config_t (SDK-012).
+ * AOR never contains the password; auth via account_set_auth_pass only.
  */
 #include "omnix_internal.h"
 
 #include <re.h>
 #include <baresip.h>
 
+#include <errno.h>
 #include <string.h>
 
-/* No persistent account handle in this stub stage. */
+enum {
+	OMNIX_AOR_MAX = 512,
+	OMNIX_HOST_MAX = 256,
+	OMNIX_USER_MAX = 128,
+};
+
+/**
+ * Extract host from sip_server (e.g. "sips:sip.example.com:5061" →
+ * "sip.example.com"). Brackets kept for IPv6 literals.
+ */
+static int omnix_sip_host_from_server(const char *sip_server,
+				      char *host, size_t host_sz)
+{
+	const char *p;
+	const char *end;
+	size_t len;
+
+	if (!sip_server || !sip_server[0] || !host || host_sz == 0) {
+		return EINVAL;
+	}
+
+	p = sip_server;
+	if (0 == strncmp(p, "sips:", 5)) {
+		p += 5;
+	}
+	else if (0 == strncmp(p, "sip:", 4)) {
+		p += 4;
+	}
+	if (0 == strncmp(p, "//", 2)) {
+		p += 2;
+	}
+
+	if (p[0] == '[') {
+		end = strchr(p, ']');
+		if (!end) {
+			return EINVAL;
+		}
+		len = (size_t)(end - p + 1);
+	}
+	else {
+		end = strchr(p, ':');
+		if (end) {
+			len = (size_t)(end - p);
+		}
+		else {
+			len = strlen(p);
+		}
+	}
+
+	if (len == 0 || len >= host_sz) {
+		return EINVAL;
+	}
+	memcpy(host, p, len);
+	host[len] = '\0';
+	return 0;
+}
+
+/**
+ * Split sip_user into user + domain. If sip_user has no '@', domain comes
+ * from the host of sip_server.
+ */
+static int omnix_parse_user_domain(const omnix_config_t *config,
+				   char *user, size_t user_sz,
+				   char *domain, size_t domain_sz)
+{
+	const char *sip_user;
+	const char *at;
+	size_t ulen;
+	size_t dlen;
+	int err;
+
+	if (!config || !user || !domain) {
+		return EINVAL;
+	}
+
+	sip_user = config->sip_user;
+	if (!sip_user || !sip_user[0]) {
+		return EINVAL;
+	}
+
+	at = strchr(sip_user, '@');
+	if (at) {
+		ulen = (size_t)(at - sip_user);
+		dlen = strlen(at + 1);
+		if (ulen == 0 || ulen >= user_sz || dlen == 0 ||
+		    dlen >= domain_sz) {
+			return EINVAL;
+		}
+		memcpy(user, sip_user, ulen);
+		user[ulen] = '\0';
+		memcpy(domain, at + 1, dlen);
+		domain[dlen] = '\0';
+		return 0;
+	}
+
+	if (strlen(sip_user) >= user_sz) {
+		return EINVAL;
+	}
+	str_ncpy(user, sip_user, user_sz);
+	err = omnix_sip_host_from_server(config->sip_server, domain,
+					 domain_sz);
+	return err;
+}
+
+static int omnix_build_aor(const omnix_config_t *config,
+			   char *aor, size_t aor_sz)
+{
+	char user[OMNIX_USER_MAX];
+	char domain[OMNIX_HOST_MAX];
+	const char *dname;
+	int n;
+	int err;
+
+	err = omnix_parse_user_domain(config, user, sizeof(user),
+				      domain, sizeof(domain));
+	if (err) {
+		return err;
+	}
+
+	dname = config->display_name;
+	if (dname && dname[0] != '\0') {
+		n = re_snprintf(aor, aor_sz,
+				"\"%s\" <sip:%s@%s;transport=tls>",
+				dname, user, domain);
+	}
+	else {
+		n = re_snprintf(aor, aor_sz,
+				"<sip:%s@%s;transport=tls>",
+				user, domain);
+	}
+
+	if (n < 0 || (size_t)n >= aor_sz) {
+		return ENOMEM;
+	}
+
+	/* Hard guard: never allow ;auth_pass= into a loggable AOR. */
+	if (strstr(aor, "auth_pass") != NULL) {
+		return EPROTO;
+	}
+	if (config->sip_password && config->sip_password[0] != '\0' &&
+	    strstr(aor, config->sip_password) != NULL) {
+		return EPROTO;
+	}
+
+	return 0;
+}
 
 omnix_error_t omnix_account_setup(const omnix_config_t *config)
 {
-	char *pw_copy;
+	struct omnix_state *st;
+	struct ua *ua = NULL;
+	struct account *acc;
+	char aor[OMNIX_AOR_MAX];
+	char user[OMNIX_USER_MAX];
+	char domain[OMNIX_HOST_MAX];
+	const char *auth_user;
+	char *pw_copy = NULL;
+	int err;
+	omnix_error_t oerr = OMNIX_ERR_OK;
 
 	if (!config) {
 		return OMNIX_ERR_INVALID_CONFIG;
 	}
 
+	st = omnix_state_get();
+	if (!st) {
+		return OMNIX_ERR_INTERNAL;
+	}
+
+	if (st->ua) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	err = omnix_build_aor(config, aor, sizeof(aor));
+	if (err) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+
+	err = omnix_parse_user_domain(config, user, sizeof(user),
+				      domain, sizeof(domain));
+	if (err) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+
+	auth_user = (config->auth_user && config->auth_user[0] != '\0')
+			    ? config->auth_user
+			    : user;
+
 	/*
-	 * Password handling (Issue #1 §26):
-	 * Copy caller-owned sip_password into Omnix-owned buffer, pass to
-	 * account_set_auth_pass when a real account exists, then wipe ONLY
-	 * the Omnix-owned copy. Never write into config->sip_password.
+	 * Password handling (Issue #1 §26): copy caller-owned sip_password
+	 * into Omnix-owned buffer, pass to account_set_auth_pass, then wipe
+	 * ONLY the Omnix-owned copy. Never write into config->sip_password.
 	 * Never put the password into the AOR (no ;auth_pass=).
 	 */
 	if (config->sip_password && config->sip_password[0] != '\0') {
@@ -31,26 +209,182 @@ omnix_error_t omnix_account_setup(const omnix_config_t *config)
 		if (!pw_copy) {
 			return OMNIX_ERR_INTERNAL;
 		}
-
-		/* Feed log filter so accidental logs cannot echo the secret. */
 		omnix_log_filter_set_secret(pw_copy);
+	}
 
-		/*
-		 * SDK-010: no live struct account* yet (SDK-012). The wipe
-		 * still runs exactly as it will after account_set_auth_pass().
-		 * When SDK-012 lands, call account_set_auth_pass(acc, pw_copy)
-		 * immediately before the wipe below.
-		 */
-		(void)0; /* placeholder for account_set_auth_pass(acc, pw_copy) */
+	re_thread_enter();
 
+	/* dtls_srtp must be loaded before account_set_mediaenc. */
+	err = module_preload("dtls_srtp");
+	if (err && err != EALREADY) {
+		oerr = OMNIX_ERR_INITIALIZATION;
+		goto out_leave;
+	}
+
+	/*
+	 * ua_alloc → account_alloc internally from the AOR (no password).
+	 * Auth and mediaenc are set on the resulting account.
+	 */
+	err = ua_alloc(&ua, aor);
+	if (err) {
+		oerr = OMNIX_ERR_INITIALIZATION;
+		goto out_leave;
+	}
+
+	acc = ua_account(ua);
+	if (!acc) {
+		mem_deref(ua);
+		ua = NULL;
+		oerr = OMNIX_ERR_INTERNAL;
+		goto out_leave;
+	}
+
+	err = account_set_auth_user(acc, auth_user);
+	if (err) {
+		mem_deref(ua);
+		ua = NULL;
+		oerr = OMNIX_ERR_INITIALIZATION;
+		goto out_leave;
+	}
+
+	if (pw_copy) {
+		err = account_set_auth_pass(acc, pw_copy);
+		if (err) {
+			mem_deref(ua);
+			ua = NULL;
+			oerr = OMNIX_ERR_INITIALIZATION;
+			goto out_leave;
+		}
+	}
+
+	err = account_set_mediaenc(acc, "dtls_srtp");
+	if (err) {
+		mem_deref(ua);
+		ua = NULL;
+		oerr = OMNIX_ERR_INITIALIZATION;
+		goto out_leave;
+	}
+
+	st->ua = ua;
+	ua = NULL;
+	/* Retain the Omnix-built AOR for tests (never contains password). */
+	str_ncpy(st->aor_built, aor, sizeof(st->aor_built));
+
+out_leave:
+	re_thread_leave();
+
+	if (pw_copy) {
 		omnix_password_wipe_free(pw_copy);
 		pw_copy = NULL;
 	}
 
-	return OMNIX_ERR_OK;
+	return oerr;
 }
 
 void omnix_account_teardown(void)
 {
-	omnix_log_filter_clear();
+	struct omnix_state *st = omnix_state_get();
+
+	/*
+	 * UA lives on uag_list; ua_close() / list_flush frees it. Drop our
+	 * non-owning pointer only — do not mem_deref here (would race with
+	 * ua_stop_all on the re thread during shutdown).
+	 */
+	if (st) {
+		st->ua = NULL;
+		st->aor_built[0] = '\0';
+	}
+}
+
+/**
+ * Unload Menc modules after re_main has stopped and before baresip_close.
+ * Required so the next baresip_init + module_preload can re-register menc.
+ */
+void omnix_account_unload_modules(void)
+{
+	module_unload("dtls_srtp");
+}
+
+const char *omnix_test_account_aor(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	return acc ? account_aor(acc) : NULL;
+}
+
+const char *omnix_test_account_aor_built(void)
+{
+	struct omnix_state *st = omnix_state_get();
+
+	if (!st || st->aor_built[0] == '\0') {
+		return NULL;
+	}
+	return st->aor_built;
+}
+
+int omnix_test_account_has_tls_transport(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+	struct uri *uri;
+	struct pl name;
+	struct pl val;
+
+	if (!st || !st->ua) {
+		return 0;
+	}
+	acc = ua_account(st->ua);
+	if (!acc) {
+		return 0;
+	}
+	uri = account_luri(acc);
+	if (!uri) {
+		return 0;
+	}
+	pl_set_str(&name, "transport");
+	if (0 != uri_param_get(&uri->params, &name, &val)) {
+		return 0;
+	}
+	return 0 == pl_strcasecmp(&val, "tls");
+}
+
+const char *omnix_test_account_mediaenc(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	return acc ? account_mediaenc(acc) : NULL;
+}
+
+const char *omnix_test_account_auth_user(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	return acc ? account_auth_user(acc) : NULL;
+}
+
+const char *omnix_test_account_display_name(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	return acc ? account_display_name(acc) : NULL;
 }

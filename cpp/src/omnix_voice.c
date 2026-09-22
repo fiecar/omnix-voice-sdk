@@ -177,6 +177,7 @@ static void omnix_stack_teardown_partial(void)
 	omnix_re_thread_stop_and_join();
 	omnix_events_shutdown();
 	omnix_log_handler_unregister();
+	omnix_account_unload_modules();
 
 	if (g_stack_up) {
 		ua_close();
@@ -332,6 +333,7 @@ void omnix_shutdown(void)
 	omnix_re_thread_stop_and_join();
 	omnix_events_shutdown();
 	omnix_log_handler_unregister();
+	omnix_account_unload_modules();
 
 	if (g_stack_up) {
 		ua_close();

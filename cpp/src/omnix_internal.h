@@ -14,11 +14,16 @@
 extern "C" {
 #endif
 
+/* Forward decls — Baresip types stay out of public headers. */
+struct ua;
+
 struct omnix_state {
 	bool initialized;
 	bool re_thread_started;
 	omnix_reg_state_t reg_state;
 	omnix_config_t config; /* callbacks + non-secret config (no password) */
+	struct ua *ua; /* SDK-012; never exposed publicly */
+	char aor_built[512]; /* Omnix-built AOR (no password); for tests */
 	/* Fingerprint strings for idempotent omnix_init (owned, heap). */
 	char *fp_sip_server;
 	char *fp_sip_user;
@@ -48,10 +53,17 @@ void omnix_log_handler_unregister(void);
 void omnix_test_reset_last_log(void);
 const char *omnix_test_last_log(void);
 void omnix_test_emit_via_log_path(const char *msg);
+const char *omnix_test_account_aor(void);
+const char *omnix_test_account_aor_built(void);
+int omnix_test_account_has_tls_transport(void);
+const char *omnix_test_account_mediaenc(void);
+const char *omnix_test_account_auth_user(void);
+const char *omnix_test_account_display_name(void);
 
 /* Subsystems */
 omnix_error_t omnix_account_setup(const omnix_config_t *config);
 void omnix_account_teardown(void);
+void omnix_account_unload_modules(void);
 omnix_error_t omnix_events_init(void);
 void omnix_events_shutdown(void);
 int omnix_events_request_ready_signal(void);
