@@ -1,5 +1,6 @@
 /**
- * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017).
+ * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017)
+ * + answer/reject (SDK-018).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
@@ -516,14 +517,76 @@ omnix_error_t omnix_call_make(const char *destination, char *call_id_out,
 
 omnix_error_t omnix_call_answer(const char *call_id)
 {
-	(void)call_id;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	int err;
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	/* Issue #2 SDK-018: SIP 200 OK, audio-only. */
+	err = call_answer(entry->baresip_call, 200, VIDMODE_OFF);
+	if (err) {
+		re_thread_leave();
+		if (err == EINVAL || err == EAGAIN) {
+			return OMNIX_ERR_INVALID_STATE;
+		}
+		return OMNIX_ERR_CALL_FAILED;
+	}
+
+	omnix_call_info_from_baresip(&entry->info, entry->baresip_call);
+	re_thread_leave();
+	return OMNIX_ERR_OK;
 }
 
 omnix_error_t omnix_call_reject(const char *call_id)
 {
-	(void)call_id;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	struct call *call;
+	char idbuf[sizeof(((omnix_call_info_t *)0)->call_id)];
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	omnix_ncpy(idbuf, sizeof(idbuf), call_id);
+	call = entry->baresip_call;
+	/*
+	 * Issue #2 SDK-018: SIP 486 Busy Here. True INCOMING + sess may fire
+	 * CALL_EVENT_CLOSED (slot free + mem_deref) before hangup returns.
+	 * Host-injected / no-sess calls skip CLOSED — finish lifetime here
+	 * (same outcome as ua_hangup after call_hangup).
+	 */
+	call_hangup(call, 486, "Busy Here");
+	entry = omnix_find_call_by_id(idbuf);
+	if (entry && entry->baresip_call == call) {
+		omnix_free_call_slot(entry);
+		mem_deref(call);
+	}
+	re_thread_leave();
+	return OMNIX_ERR_OK;
 }
 
 omnix_error_t omnix_call_hangup(const char *call_id)
