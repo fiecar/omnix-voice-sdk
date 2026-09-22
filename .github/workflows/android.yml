@@ -133,3 +133,36 @@ jobs:
           test -f cpp/include/omnix_voice/omnix_types.h
           test -f cpp/src/omnix_voice.c
           test -f cpp/CMakeLists.txt
+
+      - name: API leakage check (public headers)
+        run: |
+          chmod +x scripts/check-api-leakage.sh
+          scripts/check-api-leakage.sh
+
+  # SDK-010: host unit test for log redaction (Linux canonical)
+  native-host-tests:
+    name: Native host tests (log redaction)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake build-essential libssl-dev zlib1g-dev
+
+      - name: Configure + build host native + tests
+        run: |
+          cmake -S cpp -B build/host -G Ninja -DSTATIC=ON -DOMNIX_BUILD_TESTS=ON
+          cmake --build build/host --target omnix_voice test_log_redaction -j"$(nproc)"
+
+      - name: Run log redaction unit test
+        run: |
+          ./build/host/test_log_redaction
+
+      - name: API leakage check
+        run: |
+          chmod +x scripts/check-api-leakage.sh
+          scripts/check-api-leakage.sh

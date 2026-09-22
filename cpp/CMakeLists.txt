@@ -172,20 +172,42 @@ set(MODULES "${OMNIX_BARESIP_MODULES}" CACHE STRING "Baresip modules for Omnix" 
 add_subdirectory("${OMNIX_BARESIP_SRC}" "${CMAKE_CURRENT_BINARY_DIR}/baresip_build")
 
 # -----------------------------------------------------------------------------
-# Omnix stub facade
+# Omnix C facade (SDK-010)
 # -----------------------------------------------------------------------------
 add_library(omnix_voice STATIC
   src/omnix_voice.c
+  src/omnix_account.c
+  src/omnix_call.c
+  src/omnix_audio.c
+  src/omnix_events.c
+  src/omnix_log.c
 )
 target_include_directories(omnix_voice
   PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(omnix_voice
   PUBLIC
     baresip
     re
 )
+if(ANDROID)
+  target_link_libraries(omnix_voice PUBLIC log)
+endif()
+
+option(OMNIX_BUILD_TESTS "Build native unit tests" OFF)
+if(OMNIX_BUILD_TESTS)
+  add_executable(test_log_redaction
+    "${OMNIX_REPO_ROOT}/tests/native/test_log_redaction.c"
+  )
+  target_include_directories(test_log_redaction PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_log_redaction PRIVATE omnix_voice)
+endif()
 
 # Helpful build summary
 add_custom_target(omnix_native_artifacts ALL

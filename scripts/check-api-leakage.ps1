@@ -1,0 +1,88 @@
+#Requires -Version 7.0
+<#
+.SYNOPSIS
+  Fail if public Omnix headers/APIs leak Baresip or re types (Issue #1 §12).
+#>
+[CmdletBinding()]
+param(
+    [string]$RepoRoot = ''
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function Fail([string]$Message) {
+    [Console]::Error.WriteLine("check-api-leakage: $Message")
+    exit 1
+}
+
+if (-not $RepoRoot) {
+    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+}
+
+$publicHeaders = @(
+    (Join-Path $RepoRoot 'cpp/include/omnix_voice/omnix_voice.h'),
+    (Join-Path $RepoRoot 'cpp/include/omnix_voice/omnix_types.h')
+)
+
+foreach ($h in $publicHeaders) {
+    if (-not (Test-Path -LiteralPath $h)) {
+        Fail "missing public header: $h"
+    }
+}
+
+# Forbidden patterns in public headers
+$forbidden = @(
+    'baresip\.h',
+    '\bre\.h\b',
+    'third_party/',
+    'struct\s+ua\b',
+    'struct\s+call\b',
+    'struct\s+account\b',
+    'struct\s+config\b',
+    'struct\s+mqueue\b',
+    'struct\s+sa\b',
+    'struct\s+pl\b',
+    'struct\s+mbuf\b',
+    'enum\s+ua_event',
+    'enum\s+call_event',
+    'enum\s+call_state',
+    'enum\s+vidmode',
+    'enum\s+sdp_dir',
+    '\bre_',
+    '\bmem_alloc\b',
+    '\bmem_deref\b'
+)
+
+$failures = @()
+foreach ($h in $publicHeaders) {
+    $text = Get-Content -LiteralPath $h -Raw
+    if ($text -match '(?i)#\s*include\s*[<"]baresip\.h[>"]') {
+        $failures += "${h}: includes baresip.h"
+    }
+    if ($text -match '(?i)#\s*include\s*[<"]re\.h[>"]') {
+        $failures += "${h}: includes re.h"
+    }
+    foreach ($pat in $forbidden) {
+        if ($text -match $pat) {
+            # Allow comments that mention the rule itself
+            $lines = Get-Content -LiteralPath $h
+            $lineNo = 0
+            foreach ($line in $lines) {
+                $lineNo++
+                if ($line -match $pat -and $line -notmatch 'MUST NOT|do NOT|Baresip / re types MUST NOT') {
+                    $failures += "${h}:${lineNo}: matched /$pat/ -> $line"
+                }
+            }
+        }
+    }
+}
+
+if ($failures.Count -gt 0) {
+    Write-Host "check-api-leakage: FAIL"
+    $failures | ForEach-Object { Write-Host "  $_" }
+    exit 1
+}
+
+Write-Host "check-api-leakage: PASS"
+exit 0
