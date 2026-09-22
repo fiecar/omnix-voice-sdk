@@ -20,6 +20,8 @@ struct ua;
 struct omnix_state {
 	bool initialized;
 	bool re_thread_started;
+	bool unregister_pending; /* expire=0 REGISTER_OK → UNREGISTERED */
+	bool shutting_down; /* skip mqueue reg notify during teardown */
 	omnix_reg_state_t reg_state;
 	omnix_config_t config; /* callbacks + non-secret config (no password) */
 	struct ua *ua; /* SDK-012; never exposed publicly */
@@ -59,6 +61,9 @@ int omnix_test_account_has_tls_transport(void);
 const char *omnix_test_account_mediaenc(void);
 const char *omnix_test_account_auth_user(void);
 const char *omnix_test_account_display_name(void);
+const char *omnix_test_account_outbound(void);
+/* kind: 0=REGISTER_OK, 1=REGISTER_FAIL, 2=UNREGISTERING */
+int omnix_test_inject_reg_bevent(int kind, const char *text);
 
 /* Subsystems */
 omnix_error_t omnix_account_setup(const omnix_config_t *config);
@@ -68,6 +73,9 @@ omnix_error_t omnix_events_init(void);
 void omnix_events_shutdown(void);
 int omnix_events_request_ready_signal(void);
 int omnix_events_request_shutdown(void);
+int omnix_events_notify_registering(void);
+int omnix_events_notify_reg_state(omnix_reg_state_t state, int sip_code,
+				  const char *reason);
 
 /* Lifecycle helpers (SDK-011) — signal that re_main is polling */
 void omnix_lifecycle_on_re_ready(void);

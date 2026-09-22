@@ -328,6 +328,7 @@ void omnix_shutdown(void)
 		return;
 	}
 
+	g_state.shutting_down = true;
 	omnix_account_teardown();
 	/* ua_stop_all(false) + re_cancel run on the re thread via mqueue. */
 	omnix_re_thread_stop_and_join();
@@ -352,21 +353,39 @@ void omnix_shutdown(void)
 
 omnix_error_t omnix_register(void)
 {
-	if (!g_state.initialized) {
+	int err;
+
+	if (!g_state.initialized || !g_state.ua) {
 		return OMNIX_ERR_INVALID_STATE;
 	}
-	g_state.reg_state = OMNIX_REG_REGISTERING;
-	/* Real SIP registration: SDK-013 */
-	g_state.reg_state = OMNIX_REG_FAILED;
-	return OMNIX_ERR_NOT_SUPPORTED;
+
+	/* App-visible REGISTERING before ua_register (state + mqueue cb). */
+	(void)omnix_events_notify_registering();
+
+	re_thread_enter();
+	err = ua_register(g_state.ua);
+	re_thread_leave();
+
+	if (err) {
+		(void)omnix_events_notify_reg_state(OMNIX_REG_FAILED, 0,
+						    "register rejected");
+		return OMNIX_ERR_REGISTRATION_FAILED;
+	}
+
+	return OMNIX_ERR_OK;
 }
 
 void omnix_unregister(void)
 {
-	if (!g_state.initialized) {
+	if (!g_state.initialized || !g_state.ua) {
 		return;
 	}
-	g_state.reg_state = OMNIX_REG_UNREGISTERED;
+
+	g_state.unregister_pending = true;
+
+	re_thread_enter();
+	ua_unregister(g_state.ua);
+	re_thread_leave();
 }
 
 omnix_reg_state_t omnix_get_reg_state(void)

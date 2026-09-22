@@ -265,6 +265,20 @@ omnix_error_t omnix_account_setup(const omnix_config_t *config)
 		goto out_leave;
 	}
 
+	/*
+	 * Outbound proxy from sip_server (SDK-012 deferred → SDK-013).
+	 * REGISTER is sent to this URI; AOR domain may differ.
+	 */
+	if (config->sip_server && config->sip_server[0] != '\0') {
+		err = account_set_outbound(acc, config->sip_server, 0);
+		if (err) {
+			mem_deref(ua);
+			ua = NULL;
+			oerr = OMNIX_ERR_INITIALIZATION;
+			goto out_leave;
+		}
+	}
+
 	st->ua = ua;
 	ua = NULL;
 	/* Retain the Omnix-built AOR for tests (never contains password). */
@@ -387,4 +401,16 @@ const char *omnix_test_account_display_name(void)
 	}
 	acc = ua_account(st->ua);
 	return acc ? account_display_name(acc) : NULL;
+}
+
+const char *omnix_test_account_outbound(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	return acc ? account_outbound(acc, 0) : NULL;
 }
