@@ -139,9 +139,9 @@ jobs:
           chmod +x scripts/check-api-leakage.sh
           scripts/check-api-leakage.sh
 
-  # SDK-010/011/012/013/014: host unit tests (Linux canonical)
+  # SDK-010/011/012/013/014/015: host unit tests (Linux canonical)
   native-host-tests:
-    name: Native host tests (lifecycle + log redaction + account + registration + events)
+    name: Native host tests (lifecycle + log redaction + account + registration + events + call model)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -156,7 +156,7 @@ jobs:
       - name: Configure + build host native + tests
         run: |
           cmake -S cpp -B build/host -G Ninja -DSTATIC=ON -DOMNIX_BUILD_TESTS=ON
-          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events -j"$(nproc)"
+          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events test_call_model -j"$(nproc)"
 
       - name: Run log redaction unit test
         run: |
@@ -177,6 +177,10 @@ jobs:
       - name: Run registration events unit test
         run: |
           ./build/host/test_registration_events
+
+      - name: Run call model unit test
+        run: |
+          ./build/host/test_call_model
 
       - name: API leakage check
         run: |

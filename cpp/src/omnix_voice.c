@@ -173,6 +173,7 @@ static void omnix_re_thread_stop_and_join(void)
 
 static void omnix_stack_teardown_partial(void)
 {
+	omnix_call_registry_reset();
 	omnix_account_teardown();
 	omnix_re_thread_stop_and_join();
 	omnix_events_shutdown();
@@ -216,6 +217,7 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 	g_re_ready = false;
 
 	memset(&g_state, 0, sizeof(g_state));
+	omnix_call_registry_reset();
 	omnix_config_apply(&g_state.config, config);
 	g_state.config.verify_tls_cert = config->verify_tls_cert;
 	g_state.config.enable_srtp = config->enable_srtp;
@@ -329,6 +331,7 @@ void omnix_shutdown(void)
 	}
 
 	g_state.shutting_down = true;
+	omnix_call_registry_reset();
 	omnix_account_teardown();
 	/* ua_stop_all(false) + re_cancel run on the re thread via mqueue. */
 	omnix_re_thread_stop_and_join();

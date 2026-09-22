@@ -16,6 +16,14 @@ extern "C" {
 
 /* Forward decls — Baresip types stay out of public headers. */
 struct ua;
+struct call;
+
+/* SDK-015: internal call registry entry (struct call * never public). */
+typedef struct omnix_call_entry {
+	char call_id[128];
+	struct call *baresip_call; /* NEVER exposed publicly */
+	omnix_call_info_t info;
+} omnix_call_entry_t;
 
 struct omnix_state {
 	bool initialized;
@@ -64,6 +72,23 @@ const char *omnix_test_account_display_name(void);
 const char *omnix_test_account_outbound(void);
 /* kind: 0=REGISTER_OK, 1=REGISTER_FAIL, 2=UNREGISTERING, 3=REGISTERING */
 int omnix_test_inject_reg_bevent(int kind, const char *text);
+
+/* SDK-015 call registry */
+void omnix_call_registry_reset(void);
+omnix_call_entry_t *omnix_find_call_by_id(const char *call_id);
+omnix_call_entry_t *omnix_find_call_by_ptr(const struct call *call);
+omnix_call_entry_t *omnix_alloc_call_slot(struct call *call);
+void omnix_free_call_slot(omnix_call_entry_t *entry);
+void omnix_call_info_from_baresip(omnix_call_info_t *info, struct call *call);
+unsigned omnix_call_registry_count(void);
+unsigned omnix_call_registry_capacity(void);
+/* Test: install synthetic slot (fake ptr) for capacity / find helpers. */
+omnix_call_entry_t *omnix_test_install_call_slot(const char *call_id,
+						 struct call *fake_ptr);
+/* Test: ua_call_alloc + call_connect (invite may fail); sets id/peer. */
+int omnix_test_make_baresip_outgoing_call(struct call **callp,
+					  const char *peer_uri);
+void omnix_test_release_baresip_call(struct call *call);
 
 /* Subsystems */
 omnix_error_t omnix_account_setup(const omnix_config_t *config);
