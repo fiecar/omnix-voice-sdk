@@ -105,6 +105,8 @@ void omnix_log_handler_register(void)
 	if (g_log_registered) {
 		return;
 	}
+	/* Default Baresip stdout path is unredacted — disable it. */
+	log_enable_stdout(false);
 	memset(&g_log, 0, sizeof(g_log));
 	g_log.h = omnix_log_h;
 	log_register_handler(&g_log);
