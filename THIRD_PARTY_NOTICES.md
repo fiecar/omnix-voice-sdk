@@ -129,7 +129,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 | Field | Value |
 |-------|-------|
 | Component | libopus |
-| Planned license | BSD-like (exact text at import) |
+| Planned license | BSD-3-Clause (exact text confirmed at import) |
 | Status | **Not included unless SDK-067 completes.** Missing Opus does not block MVP. Attribution will be filled only if Opus is vendored. |
 
 ---
