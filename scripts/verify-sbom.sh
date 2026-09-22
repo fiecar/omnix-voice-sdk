@@ -51,9 +51,23 @@ const has = (a, t, b) => rels.some((r) => r.spdxElementId === a && r.relationshi
 if (!has("SPDXRef-DOCUMENT", "DESCRIBES", "SPDXRef-Package-omnix-voice-sdk")) process.exit(1);
 if (!has("SPDXRef-Package-omnix-voice-sdk", "DEPENDS_ON", "SPDXRef-Package-baresip")) process.exit(1);
 if (!has("SPDXRef-Package-baresip", "DEPENDS_ON", "SPDXRef-Package-re")) process.exit(1);
+const mo = manifest.components.find((c) => c.component === "openssl");
+if (mo && mo.archiveSha256) {
+  const openssl = find("openssl");
+  if (!openssl) { console.error("verify-sbom: missing openssl package"); process.exit(1); }
+  if (openssl.licenseConcluded !== "Apache-2.0" || openssl.licenseDeclared !== "Apache-2.0") {
+    console.error("verify-sbom: openssl license"); process.exit(1);
+  }
+  if (!String(openssl.comment || "").includes(mo.commit)) {
+    console.error("verify-sbom: openssl commit"); process.exit(1);
+  }
+  if (!has("SPDXRef-Package-omnix-voice-sdk", "DEPENDS_ON", "SPDXRef-Package-openssl")) {
+    console.error("verify-sbom: missing omnix DEPENDS_ON openssl"); process.exit(1);
+  }
+}
 for (const p of packages) {
   const n = String(p.name).toLowerCase();
-  for (const bad of ["openssl", "libopus", "opus", "react-native", "react_native"]) {
+  for (const bad of ["libopus", "opus", "react-native", "react_native"]) {
     if (n === bad || n.includes(bad)) { console.error("verify-sbom: false dep", p.name); process.exit(1); }
   }
 }

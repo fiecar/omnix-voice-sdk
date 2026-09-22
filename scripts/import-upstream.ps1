@@ -270,12 +270,13 @@ try {
     }
     $sourceTree = $top[0].FullName
 
-    $licensePath = Join-Path $sourceTree 'LICENSE'
-    if (-not (Test-Path -LiteralPath $licensePath)) {
-        $licensePath = Join-Path $sourceTree 'COPYING'
+    $licensePath = $null
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+        $p = Join-Path $sourceTree $cand
+        if (Test-Path -LiteralPath $p) { $licensePath = $p; break }
     }
-    if (-not (Test-Path -LiteralPath $licensePath)) {
-        Fail "LICENSE/COPYING missing in extracted tree"
+    if (-not $licensePath) {
+        Fail "LICENSE/LICENSE.txt/COPYING missing in extracted tree"
     }
 
     # Stage tree (contents of top-level dir)
@@ -284,11 +285,12 @@ try {
     & tar -cf - -C $sourceTree . | tar -xf - -C $stagePath
     if ($LASTEXITCODE -ne 0) { Fail "Failed to stage extracted tree" }
 
-    $stageLicense = Join-Path $stagePath 'LICENSE'
-    if (-not (Test-Path -LiteralPath $stageLicense)) {
-        $stageLicense = Join-Path $stagePath 'COPYING'
+    $stageLicense = $null
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+        $p = Join-Path $stagePath $cand
+        if (Test-Path -LiteralPath $p) { $stageLicense = $p; break }
     }
-    if (-not (Test-Path -LiteralPath $stageLicense)) {
+    if (-not $stageLicense) {
         Fail "LICENSE missing after staging"
     }
 
@@ -325,10 +327,12 @@ try {
     $licensesDir = Join-Path $repoRoot 'LICENSES'
     New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
     $licenseDest = Join-Path $licensesDir ("{0}-LICENSE.txt" -f $Component)
-    $vendoredLicense = Join-Path $vendoredPath 'LICENSE'
-    if (-not (Test-Path -LiteralPath $vendoredLicense)) {
-        $vendoredLicense = Join-Path $vendoredPath 'COPYING'
+    $vendoredLicense = $null
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+        $p = Join-Path $vendoredPath $cand
+        if (Test-Path -LiteralPath $p) { $vendoredLicense = $p; break }
     }
+    if (-not $vendoredLicense) { Fail "LICENSE missing in vendored tree for $Component" }
     Copy-Item -LiteralPath $vendoredLicense -Destination $licenseDest -Force
 
     Write-Manifest -Manifest $manifest -Path $manifestPath

@@ -65,6 +65,26 @@
       ],
       "homepage": "https://github.com/baresip/re",
       "comment": "vendored commit ceefe9ff499aa1bcfb6255aff1737434dd385322"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-openssl",
+      "name": "openssl",
+      "versionInfo": "openssl-3.5.8",
+      "downloadLocation": "https://github.com/openssl/openssl/archive/f4dc4d58b48d346a8270183f89acf826d459b0ca.tar.gz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "supplier": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/openssl@f4dc4d58b48d346a8270183f89acf826d459b0ca?vcs_url=https%3A%2F%2Fgithub.com%2Fopenssl%2Fopenssl"
+        }
+      ],
+      "homepage": "https://github.com/openssl/openssl",
+      "comment": "vendored commit f4dc4d58b48d346a8270183f89acf826d459b0ca"
     }
   ],
   "relationships": [
@@ -82,6 +102,11 @@
       "spdxElementId": "SPDXRef-Package-baresip",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-re"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-omnix-voice-sdk",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-openssl"
     }
   ]
 }

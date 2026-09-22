@@ -45,8 +45,9 @@ omnix-voice-sdk
         └── DEPENDS_ON → re (v4.11.0 @ ceefe9ff…)
 ```
 
-Planned-but-absent components (OpenSSL, libopus, React Native) are **not**
-listed as current SBOM packages until imported/pinned.
+Planned-but-absent components (libopus, React Native) are **not**
+listed as current SBOM packages until imported/pinned. OpenSSL is included
+after SDK-066.
 
 ## When to regenerate
 

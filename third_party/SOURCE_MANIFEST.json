@@ -24,6 +24,18 @@
       "licenseFile": "third_party/re/LICENSE",
       "archiveSha256": "a74a96cddb0284261dcdb6ca7728dd1609549e576075fa192f289e1abf523faa",
       "vendoredPath": "third_party/re"
+    },
+    {
+      "component": "openssl",
+      "repository": "https://github.com/openssl/openssl",
+      "version": "openssl-3.5.8",
+      "commit": "f4dc4d58b48d346a8270183f89acf826d459b0ca",
+      "downloadUrl": "https://github.com/openssl/openssl/archive/f4dc4d58b48d346a8270183f89acf826d459b0ca.tar.gz",
+      "importDate": "2026-09-23",
+      "license": "Apache-2.0",
+      "licenseFile": "third_party/openssl/LICENSE.txt",
+      "archiveSha256": "14067f511684d80698ffe97b8ad7989b9271ef6eef1b4b115cb00966c13e89d3",
+      "vendoredPath": "third_party/openssl"
     }
   ]
 }

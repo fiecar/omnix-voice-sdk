@@ -91,10 +91,33 @@ if (-not (Has-Rel 'SPDXRef-Package-baresip' 'DEPENDS_ON' 'SPDXRef-Package-re')) 
     Fail 'Missing baresip DEPENDS_ON re'
 }
 
-# No false current deps
+$openssl = Find-Pkg 'openssl'
+$mo = $manifest.components | Where-Object { $_.component -eq 'openssl' } | Select-Object -First 1
+if ($mo -and $mo.archiveSha256) {
+    if (-not $openssl) { Fail 'Missing package openssl (present in SOURCE_MANIFEST)' }
+    $ov = ([string]$openssl.versionInfo).TrimStart('v')
+    $mov = ([string]$mo.version) -replace '^openssl-', ''
+    if ($ov -ne $mov -and ([string]$openssl.versionInfo) -ne ([string]$mo.version)) {
+        # Accept either "3.5.8" or "openssl-3.5.8" in SBOM versionInfo
+        if ($ov -ne ([string]$mo.version).TrimStart('v') -and $ov -ne $mov) {
+            Fail "openssl version mismatch: sbom=$($openssl.versionInfo) manifest=$($mo.version)"
+        }
+    }
+    if ([string]$openssl.licenseConcluded -ne 'Apache-2.0' -or [string]$openssl.licenseDeclared -ne 'Apache-2.0') {
+        Fail 'openssl license must be Apache-2.0'
+    }
+    if ([string]$openssl.comment -notmatch [regex]::Escape([string]$mo.commit)) {
+        Fail 'openssl commit SHA not recorded in SBOM package comment'
+    }
+    if (-not (Has-Rel 'SPDXRef-Package-omnix-voice-sdk' 'DEPENDS_ON' 'SPDXRef-Package-openssl')) {
+        Fail 'Missing omnix-voice-sdk DEPENDS_ON openssl'
+    }
+}
+
+# No false current deps (planned-but-absent)
 foreach ($p in $packages) {
     $n = ([string]$p.name).ToLowerInvariant()
-    foreach ($bad in @('openssl', 'libopus', 'opus', 'react-native', 'react_native')) {
+    foreach ($bad in @('libopus', 'opus', 'react-native', 'react_native')) {
         if ($n -eq $bad -or $n.Contains($bad)) {
             Fail "False current dependency present: $($p.name)"
         }
