@@ -68,8 +68,9 @@ for abi in $ABIS; do
   echo "build-openssl-android: configuring $abi ($target)"
   (
     cd "$build_dir"
-    # Out-of-tree Configure (OpenSSL 3.x)
-    "$OPENSSL_SRC/Configure" "$target" \
+    # Out-of-tree Configure (OpenSSL 3.x). Invoke via perl because vendored
+    # sources imported on Windows may lack the executable bit on Configure.
+    perl "$OPENSSL_SRC/Configure" "$target" \
       no-shared \
       no-tests \
       -D__ANDROID_API__="${ANDROID_API}" \
