@@ -54,9 +54,17 @@ build_one() {
   [[ -n "$baresip" ]] || fail "libbaresip.a not produced under $out_dir"
   [[ -n "$re" ]] || fail "libre.a not produced under $out_dir"
   [[ -n "$omnix" ]] || fail "libomnix_voice.a not produced under $out_dir"
-  cp -f "$baresip" "$out_dir/libbaresip.a"
-  cp -f "$re" "$out_dir/libre.a"
-  cp -f "$omnix" "$out_dir/libomnix_voice.a"
+  stage_one() {
+    local src="$1" dest="$2"
+    if [[ "$(cd "$(dirname "$src")" && pwd)/$(basename "$src")" == \
+          "$(cd "$(dirname "$dest")" && pwd)/$(basename "$dest")" ]]; then
+      return 0
+    fi
+    cp -f "$src" "$dest"
+  }
+  stage_one "$baresip" "$out_dir/libbaresip.a"
+  stage_one "$re" "$out_dir/libre.a"
+  stage_one "$omnix" "$out_dir/libomnix_voice.a"
   echo "build-ios: staged $out_dir/libbaresip.a"
 }
 
