@@ -35,7 +35,7 @@ openssl: tag=openssl-3.5.8, commit=f4dc4d58b48d346a8270183f89acf826d459b0ca, imp
 
 - Canonical build: Linux CI (`.github/workflows/android.yml`) via `scripts/build-openssl-android.sh`
 - Windows fetch (no WSL): `pwsh -File scripts/fetch-openssl-android.ps1` (checksum-verified CI artifact)
-- NDK for this job: **r29** (`29.0.14206865` via setup-ndk) — provisional until human gate H-2 / SDK-030 pins the Android module NDK/AGP
+- NDK for this job: **r29** (`29.0.14206865`) — same pin as Android module (SDK-030 / `docs/toolchain.md`); gate H-2 approves in the SDK-030 PR
 - Output: static `libssl.a` / `libcrypto.a` only (`no-shared`); never ship `.so`
 
 ## Update procedure
