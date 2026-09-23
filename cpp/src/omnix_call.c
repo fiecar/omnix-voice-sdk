@@ -1,7 +1,7 @@
 /**
  * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017)
  * + answer/reject (SDK-018) + hangup / CLOSED (SDK-019) + mute (SDK-020)
- * + DTMF (SDK-022).
+ * + DTMF (SDK-022) + hold/resume (SDK-023).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
@@ -780,14 +780,109 @@ omnix_error_t omnix_call_hangup(const char *call_id)
 
 omnix_error_t omnix_call_hold(const char *call_id)
 {
-	(void)call_id;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	struct call *call;
+	int err;
+	bool muted;
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	/*
+	 * Issue #2 SDK-023: hold only from CONNECTED (Omnix entry state).
+	 * call_hold(call, true) under re lock; fire HELD on success.
+	 */
+	if (entry->info.state != OMNIX_CALL_CONNECTED) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	call = entry->baresip_call;
+	muted = entry->info.is_muted;
+	err = call_hold(call, true);
+	/*
+	 * call_hold sets on_hold before call_modify. Host inject may lack a
+	 * usable sess (EINVAL) or modify may fail offline — accept only when
+	 * Baresip reports on-hold so we never invent HELD without call_hold.
+	 */
+	if (call_is_onhold(call)) {
+		omnix_call_info_from_baresip(&entry->info, call);
+		entry->info.is_muted = muted;
+		entry->info.state = OMNIX_CALL_HELD;
+		entry->info.is_on_hold = true;
+		(void)omnix_events_notify_call_state(OMNIX_CALL_HELD,
+						     &entry->info);
+		re_thread_leave();
+		return OMNIX_ERR_OK;
+	}
+	re_thread_leave();
+	if (err == EINVAL) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	return OMNIX_ERR_CALL_FAILED;
 }
 
 omnix_error_t omnix_call_resume(const char *call_id)
 {
-	(void)call_id;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	struct call *call;
+	int err;
+	bool muted;
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	/*
+	 * Issue #2 SDK-023: resume only from HELD.
+	 * call_hold(call, false) under re lock; fire CONNECTED on success.
+	 */
+	if (entry->info.state != OMNIX_CALL_HELD) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	call = entry->baresip_call;
+	muted = entry->info.is_muted;
+	err = call_hold(call, false);
+	if (!call_is_onhold(call)) {
+		omnix_call_info_from_baresip(&entry->info, call);
+		entry->info.is_muted = muted;
+		entry->info.state = OMNIX_CALL_CONNECTED;
+		entry->info.is_on_hold = false;
+		(void)omnix_events_notify_call_state(OMNIX_CALL_CONNECTED,
+						     &entry->info);
+		re_thread_leave();
+		return OMNIX_ERR_OK;
+	}
+	re_thread_leave();
+	if (err == EINVAL) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	return OMNIX_ERR_CALL_FAILED;
 }
 
 omnix_error_t omnix_call_set_mute(const char *call_id, bool mute)
@@ -904,6 +999,52 @@ void omnix_test_reset_last_dtmf(void)
 char omnix_test_last_dtmf_digit(void)
 {
 	return g_last_dtmf_digit;
+}
+
+/**
+ * Test helper (SDK-023): mark Omnix entry CONNECTED so hold guard can pass.
+ * Host inject never reaches ESTABLISHED; live SIP sets CONNECTED via events.
+ * Returns 0 on success, else errno-style code.
+ */
+int omnix_test_force_call_connected(const char *call_id)
+{
+	omnix_call_entry_t *entry;
+
+	if (!call_id || call_id[0] == '\0') {
+		return EINVAL;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return ENOENT;
+	}
+	entry->info.state = OMNIX_CALL_CONNECTED;
+	entry->info.is_on_hold = false;
+	re_thread_leave();
+	return 0;
+}
+
+/**
+ * Test helper (SDK-023): whether Baresip call_is_onhold is true (-1 if missing).
+ */
+int omnix_test_call_is_onhold(const char *call_id)
+{
+	omnix_call_entry_t *entry;
+	int onhold = -1;
+
+	if (!call_id || call_id[0] == '\0') {
+		return -1;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (entry && entry->baresip_call) {
+		onhold = call_is_onhold(entry->baresip_call) ? 1 : 0;
+	}
+	re_thread_leave();
+	return onhold;
 }
 
 omnix_error_t omnix_call_transfer_blind(const char *call_id,
