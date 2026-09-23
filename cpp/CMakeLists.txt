@@ -175,6 +175,16 @@ list(FIND OMNIX_BARESIP_MODULES "srtp" _omnix_mod_srtp)
 if(_omnix_mod_srtp EQUAL -1)
   message(FATAL_ERROR "SDK-026: OMNIX_BARESIP_MODULES must include srtp")
 endif()
+# SDK-027: g711 (PCMU/PCMA) mandatory baseline; Opus only via SDK-067.
+list(FIND OMNIX_BARESIP_MODULES "g711" _omnix_mod_g711)
+if(_omnix_mod_g711 EQUAL -1)
+  message(FATAL_ERROR "SDK-027: OMNIX_BARESIP_MODULES must include g711")
+endif()
+# Guard: never pull in opus until SDK-067 pins third_party/opus.
+list(FIND OMNIX_BARESIP_MODULES "opus" _omnix_mod_opus)
+if(NOT _omnix_mod_opus EQUAL -1)
+  message(FATAL_ERROR "SDK-027: opus must not be in modules until SDK-067")
+endif()
 
 # -----------------------------------------------------------------------------
 # baresip (finds re via FindRE + re-config.cmake under third_party/re/cmake)
@@ -356,6 +366,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_srtp PRIVATE omnix_voice)
+
+  add_executable(test_codecs
+    "${OMNIX_REPO_ROOT}/tests/native/test_codecs.c"
+  )
+  target_include_directories(test_codecs PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_codecs PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary
