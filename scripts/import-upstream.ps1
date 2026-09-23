@@ -136,6 +136,14 @@ function Write-Sha256Sums([string]$RepoRoot, $Manifest) {
     [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($false))
 }
 
+function Test-OmnixSkippedVendoredRel([string]$Rel) {
+    # Files matching repo secret/binary ignores are present in upstream archives
+    # but must not be committed (GitHub secret scanning / *.pem gitignore).
+    # Keep TREE_SHA256SUMS aligned with what CI clones can verify.
+    $n = $Rel.ToLowerInvariant()
+    return ($n -match '\.(pem|key|p12|pfx|jks|keystore|dylib|so|dll|exe|a)$')
+}
+
 function Write-TreeSha256Sums([string]$RepoRoot, $Manifest) {
     $lines = New-Object System.Collections.Generic.List[string]
     foreach ($c in $Manifest.components) {
@@ -144,6 +152,7 @@ function Write-TreeSha256Sums([string]$RepoRoot, $Manifest) {
         $files = Get-ChildItem -LiteralPath $vendored -Recurse -File
         foreach ($f in $files) {
             $rel = $f.FullName.Substring($RepoRoot.Length).TrimStart('\', '/').Replace('\', '/')
+            if (Test-OmnixSkippedVendoredRel $rel) { continue }
             $hash = Get-FileSha256Lower $f.FullName
             $lines.Add(("{0}  {1}" -f $hash, $rel))
         }
@@ -271,12 +280,12 @@ try {
     $sourceTree = $top[0].FullName
 
     $licensePath = $null
-    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'LICENSE.md', 'COPYING')) {
         $p = Join-Path $sourceTree $cand
         if (Test-Path -LiteralPath $p) { $licensePath = $p; break }
     }
     if (-not $licensePath) {
-        Fail "LICENSE/LICENSE.txt/COPYING missing in extracted tree"
+        Fail "LICENSE/LICENSE.txt/LICENSE.md/COPYING missing in extracted tree"
     }
 
     # Stage tree (contents of top-level dir)
@@ -286,7 +295,7 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail "Failed to stage extracted tree" }
 
     $stageLicense = $null
-    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'LICENSE.md', 'COPYING')) {
         $p = Join-Path $stagePath $cand
         if (Test-Path -LiteralPath $p) { $stageLicense = $p; break }
     }
@@ -328,7 +337,7 @@ try {
     New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
     $licenseDest = Join-Path $licensesDir ("{0}-LICENSE.txt" -f $Component)
     $vendoredLicense = $null
-    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'LICENSE.md', 'COPYING')) {
         $p = Join-Path $vendoredPath $cand
         if (Test-Path -LiteralPath $p) { $vendoredLicense = $p; break }
     }

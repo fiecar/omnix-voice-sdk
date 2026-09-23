@@ -36,6 +36,18 @@
       "licenseFile": "third_party/openssl/LICENSE.txt",
       "archiveSha256": "14067f511684d80698ffe97b8ad7989b9271ef6eef1b4b115cb00966c13e89d3",
       "vendoredPath": "third_party/openssl"
+    },
+    {
+      "component": "ios-cmake",
+      "repository": "https://github.com/leetal/ios-cmake",
+      "version": "4.6.0",
+      "commit": "cfaac240732eadc1a42d1869f606db2b96a8b09d",
+      "downloadUrl": "https://github.com/leetal/ios-cmake/archive/cfaac240732eadc1a42d1869f606db2b96a8b09d.tar.gz",
+      "importDate": "2026-09-24",
+      "license": "BSD-3-Clause",
+      "licenseFile": "third_party/ios-cmake/LICENSE.md",
+      "archiveSha256": "fbe456e18f43f7506a428e3b6b6e8307bd6a3bf835be1b4231e56a3c26adaeac",
+      "vendoredPath": "third_party/ios-cmake"
     }
   ]
 }

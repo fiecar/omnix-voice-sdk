@@ -98,7 +98,8 @@ PY
 
 write_tree_sha256sums() {
   python3 - "$MANIFEST" "$ROOT" "$ROOT/third_party/TREE_SHA256SUMS" <<'PY'
-import hashlib, json, os, sys
+import hashlib, json, os, re, sys
+SKIP_RE = re.compile(r"\.(pem|key|p12|pfx|jks|keystore|dylib|so|dll|exe|a)$", re.I)
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 root = sys.argv[2]
 out = sys.argv[3]
@@ -111,6 +112,8 @@ for c in manifest["components"]:
         for name in sorted(filenames):
             path = os.path.join(dirpath, name)
             rel = os.path.relpath(path, root).replace("\\", "/")
+            if SKIP_RE.search(rel):
+                continue
             h = hashlib.sha256()
             with open(path, "rb") as f:
                 for chunk in iter(lambda: f.read(1024 * 1024), b""):
@@ -229,18 +232,18 @@ mapfile -t TOP < <(find "$EXTRACT" -mindepth 1 -maxdepth 1 -type d)
 SOURCE_TREE="${TOP[0]}"
 
 LICENSE_SRC=""
-for cand in LICENSE LICENSE.txt COPYING; do
+for cand in LICENSE LICENSE.txt LICENSE.md COPYING; do
   if [[ -f "$SOURCE_TREE/$cand" ]]; then
     LICENSE_SRC="$SOURCE_TREE/$cand"
     break
   fi
 done
-[[ -n "$LICENSE_SRC" ]] || fail "LICENSE/LICENSE.txt/COPYING missing in extracted tree"
+[[ -n "$LICENSE_SRC" ]] || fail "LICENSE/LICENSE.txt/LICENSE.md/COPYING missing in extracted tree"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 tar -cf - -C "$SOURCE_TREE" . | tar -xf - -C "$STAGE"
-if [[ ! -f "$STAGE/LICENSE" && ! -f "$STAGE/LICENSE.txt" && ! -f "$STAGE/COPYING" ]]; then
+if [[ ! -f "$STAGE/LICENSE" && ! -f "$STAGE/LICENSE.txt" && ! -f "$STAGE/LICENSE.md" && ! -f "$STAGE/COPYING" ]]; then
   fail "LICENSE missing after staging"
 fi
 
@@ -267,7 +270,7 @@ update_manifest_fields "$COMPONENT" "$COMPUTED" "$IMPORT_DATE"
 mkdir -p "$ROOT/LICENSES"
 LICENSE_DEST="$ROOT/LICENSES/${COMPONENT}-LICENSE.txt"
 LICENSE_VENDORED=""
-for cand in LICENSE LICENSE.txt COPYING; do
+for cand in LICENSE LICENSE.txt LICENSE.md COPYING; do
   if [[ -f "$VENDORED_PATH/$cand" ]]; then
     LICENSE_VENDORED="$VENDORED_PATH/$cand"
     break

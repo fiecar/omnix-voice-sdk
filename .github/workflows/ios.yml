@@ -1,0 +1,94 @@
+# iOS native build (SDK-039) — [MACOS REQUIRED]
+name: ios
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-native-static:
+    name: iOS native static (device + sim arm64)
+    runs-on: macos-14
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode
+        run: |
+          xcodebuild -version
+          xcrun --show-sdk-path --sdk iphoneos
+          xcrun --show-sdk-path --sdk iphonesimulator
+
+      - name: Verify ios-cmake pin
+        run: |
+          test -f third_party/ios-cmake/ios.toolchain.cmake
+          test -f third_party/ios-cmake/LICENSE.md
+          python3 - <<'PY'
+          import json
+          m=json.load(open("third_party/SOURCE_MANIFEST.json"))
+          c=next(x for x in m["components"] if x["component"]=="ios-cmake")
+          assert c["commit"]=="cfaac240732eadc1a42d1869f606db2b96a8b09d"
+          assert c["version"]=="4.6.0"
+          assert c["archiveSha256"]=="fbe456e18f43f7506a428e3b6b6e8307bd6a3bf835be1b4231e56a3c26adaeac"
+          print("ios-cmake pin OK", c["version"], c["commit"][:12])
+          PY
+
+      - name: Verify third_party integrity
+        run: |
+          chmod +x scripts/verify-third-party.sh
+          scripts/verify-third-party.sh
+
+      - name: Build OpenSSL static (iOS slices)
+        run: |
+          chmod +x scripts/build-openssl-ios.sh
+          scripts/build-openssl-ios.sh
+          test -f build/openssl-ios/iphoneos-arm64/lib/libssl.a
+          test -f build/openssl-ios/iphonesimulator-arm64/lib/libssl.a
+          if find build/openssl-ios -name 'libssl*.dylib' -o -name 'libcrypto*.dylib' | grep -q .; then
+            echo "Shared OpenSSL libs found — failing" >&2
+            exit 1
+          fi
+
+      - name: Build iOS device + simulator native static
+        run: |
+          chmod +x ios/build-ios.sh
+          ios/build-ios.sh
+          test -f build/ios-device/libbaresip.a
+          test -f build/ios-sim/libbaresip.a
+          test -f build/ios-device/libre.a
+          test -f build/ios-sim/libre.a
+          test -f build/ios-device/libomnix_voice.a
+          test -f build/ios-sim/libomnix_voice.a
+
+      - name: Confirm audiounit in module configure log
+        run: |
+          # CMake logs MODULES_DETECTED for Android; for iOS grep the CMakeCache / build logs.
+          grep -R "audiounit" build/ios-device --include='*.cmake' --include='CMakeCache.txt' -l | head
+          # Hard fail if opensles slipped into iOS module list
+          if grep -R "MODULES" build/ios-device/CMakeCache.txt 2>/dev/null | grep -q opensles; then
+            echo "opensles must not be in iOS module list" >&2
+            exit 1
+          fi
+          echo "iOS native build artifacts OK"
+
+      - name: Upload iOS native artifacts (static libs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnix-ios-native-static
+          path: |
+            build/ios-device/libbaresip.a
+            build/ios-device/libre.a
+            build/ios-device/libomnix_voice.a
+            build/ios-sim/libbaresip.a
+            build/ios-sim/libre.a
+            build/ios-sim/libomnix_voice.a
+            build/openssl-ios/SHA256SUMS
+            build/openssl-ios/ARTIFACT_META.json
+          if-no-files-found: error

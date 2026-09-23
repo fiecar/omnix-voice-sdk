@@ -14,6 +14,11 @@ function Fail([string]$Message) {
     exit 1
 }
 
+function Test-OmnixSkippedVendoredRel([string]$Rel) {
+    $n = $Rel.ToLowerInvariant()
+    return ($n -match '\.(pem|key|p12|pfx|jks|keystore|dylib|so|dll|exe|a)$')
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $sumsPath = Join-Path $repoRoot 'third_party/TREE_SHA256SUMS'
 $manifestPath = Join-Path $repoRoot 'third_party/SOURCE_MANIFEST.json'
@@ -34,6 +39,7 @@ Get-Content -LiteralPath $sumsPath -Encoding utf8 | ForEach-Object {
     }
     $hash = $Matches[1].ToLowerInvariant()
     $rel = $Matches[2].Trim().Replace('\', '/')
+    if (Test-OmnixSkippedVendoredRel $rel) { return }
     if ($expected.ContainsKey($rel)) { Fail "Duplicate path in TREE_SHA256SUMS: $rel" }
     $expected[$rel] = $hash
 }
@@ -49,6 +55,7 @@ foreach ($c in $manifest.components) {
     if (-not (Test-Path -LiteralPath $vendored)) { continue }
     Get-ChildItem -LiteralPath $vendored -Recurse -File | ForEach-Object {
         $rel = $_.FullName.Substring($repoRoot.Length).TrimStart('\', '/').Replace('\', '/')
+        if (Test-OmnixSkippedVendoredRel $rel) { return }
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
         $actual[$rel] = $hash
     }

@@ -174,7 +174,25 @@ pwsh -File scripts/fetch-openssl-android.ps1   # once, checksum-verified
 
 ## iOS
 
-**[MACOS REQUIRED]** — pins recorded when SDK-039 lands.
+**[MACOS REQUIRED]** for compile/link (SDK-039+).
+
+| Component | Pinned version | Notes |
+|-----------|----------------|-------|
+| ios-cmake | **4.6.0** @ `cfaac240732eadc1a42d1869f606db2b96a8b09d` | Vendored via `import-upstream` → `third_party/ios-cmake/` (BSD-3-Clause). Never fetch from `master` at build time. |
+| Deployment target | **iOS 15.0** | Frozen F-7. |
+| OpenSSL | **3.5.8** (SDK-066 snapshot) | Static slices via `scripts/build-openssl-ios.sh` → `build/openssl-ios/{iphoneos-arm64,iphonesimulator-arm64}/`. |
+| Platforms | `OS64` + `SIMULATORARM64` | Device arm64 + Simulator arm64 (x86_64 sim optional — F-15). |
+| Baresip audio module | `audiounit` | `opensles` is Android/host only. |
+
+```bash
+# [MACOS REQUIRED]
+chmod +x scripts/build-openssl-ios.sh ios/build-ios.sh
+scripts/build-openssl-ios.sh
+ios/build-ios.sh
+# Produces build/ios-device/libbaresip.a and build/ios-sim/libbaresip.a
+```
+
+CI: `.github/workflows/ios.yml` on `macos-14`.
 
 ## React Native
 

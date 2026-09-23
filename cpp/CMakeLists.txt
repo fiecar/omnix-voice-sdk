@@ -35,6 +35,8 @@ set(LIBRE_BUILD_STATIC ON CACHE BOOL "Build static libre" FORCE)
 # Pass -DOMNIX_OPENSSL_ROOT=<prefix> where prefix contains include/ and lib/.
 # For Android ABIs: build/openssl-android/<abi> from fetch-openssl-android.ps1
 # or scripts/build-openssl-android.sh.
+# For iOS slices: build/openssl-ios/iphoneos-arm64|iphonesimulator-arm64 from
+# scripts/build-openssl-ios.sh (SDK-039).
 # -----------------------------------------------------------------------------
 if(NOT OMNIX_OPENSSL_ROOT AND DEFINED ENV{OMNIX_OPENSSL_ROOT})
   set(OMNIX_OPENSSL_ROOT "$ENV{OMNIX_OPENSSL_ROOT}")
@@ -56,6 +58,26 @@ if(ANDROID)
       "Android builds require pinned OpenSSL (SDK-066). "
       "Set OMNIX_OPENSSL_ROOT to build/openssl-android/<abi> "
       "(run scripts/fetch-openssl-android.ps1 or build-openssl-android.sh).")
+  endif()
+endif()
+
+# SDK-039: iOS device/simulator require pinned OpenSSL (never system).
+if(IOS)
+  if(NOT OMNIX_OPENSSL_ROOT)
+    if(CMAKE_OSX_SYSROOT MATCHES "iPhoneSimulator")
+      set(_omnix_guess "${OMNIX_REPO_ROOT}/build/openssl-ios/iphonesimulator-arm64")
+    else()
+      set(_omnix_guess "${OMNIX_REPO_ROOT}/build/openssl-ios/iphoneos-arm64")
+    endif()
+    if(EXISTS "${_omnix_guess}/lib/libssl.a" AND EXISTS "${_omnix_guess}/lib/libcrypto.a")
+      set(OMNIX_OPENSSL_ROOT "${_omnix_guess}")
+    endif()
+  endif()
+  if(NOT OMNIX_OPENSSL_ROOT)
+    message(FATAL_ERROR
+      "iOS builds require pinned OpenSSL (SDK-066/039). "
+      "Set OMNIX_OPENSSL_ROOT to build/openssl-ios/<slice> "
+      "(run scripts/build-openssl-ios.sh on macOS).")
   endif()
 endif()
 
@@ -123,8 +145,9 @@ set(re_DIR "${OMNIX_RE_SRC}/cmake" CACHE PATH "Directory containing re-config.cm
 # Excludes desktop-only modules whose Find*.cmake call
 # find_package(PkgConfig REQUIRED) (e.g. v4l2) which breaks NDK
 # cross-configure on Windows hosts. Opus lands in SDK-067.
-# aaudio is deferred: upstream module uses API-28-only AAudio symbols
-# while Omnix Android minSdk is 26 (opensles covers MVP audio).
+# Platform audio:
+#   Android / host: opensles (minSdk 26; aaudio deferred — API-28-only symbols)
+#   iOS (SDK-039): audiounit (deployment target 15.0)
 set(OMNIX_BARESIP_MODULES
   account
   aubridge
@@ -150,7 +173,6 @@ set(OMNIX_BARESIP_MODULES
   mwi
   natpmp
   netroam
-  opensles
   presence
   rtcpsummary
   selfview
@@ -164,6 +186,11 @@ set(OMNIX_BARESIP_MODULES
   vidinfo
   vumeter
 )
+if(IOS)
+  list(APPEND OMNIX_BARESIP_MODULES audiounit)
+else()
+  list(APPEND OMNIX_BARESIP_MODULES opensles)
+endif()
 set(MODULES "${OMNIX_BARESIP_MODULES}" CACHE STRING "Baresip modules for Omnix" FORCE)
 
 # SDK-026: dtls_srtp (+ srtp) must remain in the static module list.
@@ -185,6 +212,17 @@ list(FIND OMNIX_BARESIP_MODULES "stun" _omnix_mod_stun)
 if(_omnix_mod_stun EQUAL -1)
   message(FATAL_ERROR "SDK-028: OMNIX_BARESIP_MODULES must include stun")
 endif()
+# SDK-039: audiounit required on iOS; opensles must not ship in iOS builds.
+if(IOS)
+  list(FIND OMNIX_BARESIP_MODULES "audiounit" _omnix_mod_audiounit)
+  if(_omnix_mod_audiounit EQUAL -1)
+    message(FATAL_ERROR "SDK-039: OMNIX_BARESIP_MODULES must include audiounit on iOS")
+  endif()
+  list(FIND OMNIX_BARESIP_MODULES "opensles" _omnix_mod_opensles_ios)
+  if(NOT _omnix_mod_opensles_ios EQUAL -1)
+    message(FATAL_ERROR "SDK-039: opensles must not be in iOS module list")
+  endif()
+endif()
 # Guard: never pull in opus until SDK-067 pins third_party/opus.
 list(FIND OMNIX_BARESIP_MODULES "opus" _omnix_mod_opus)
 if(NOT _omnix_mod_opus EQUAL -1)
@@ -194,6 +232,12 @@ endif()
 # -----------------------------------------------------------------------------
 # baresip (finds re via FindRE + re-config.cmake under third_party/re/cmake)
 # -----------------------------------------------------------------------------
+# ios-cmake defaults CMAKE_MACOSX_BUNDLE=ON which makes baresip's CLI
+# `baresip_exe` a MACOSX_BUNDLE and breaks upstream install() (BUNDLE DESTINATION
+# required). Omnix only needs libbaresip.a — disable bundling for the exe.
+if(IOS)
+  set(CMAKE_MACOSX_BUNDLE OFF CACHE BOOL "Disable Mac/iOS bundle for baresip_exe" FORCE)
+endif()
 add_subdirectory("${OMNIX_BARESIP_SRC}" "${CMAKE_CURRENT_BINARY_DIR}/baresip_build")
 
 # -----------------------------------------------------------------------------
