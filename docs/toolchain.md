@@ -98,8 +98,45 @@ devices it **skips**. A 16 KB emulator/device (`adb shell getconf PAGE_SIZE`
 tracked for SDK-065). Do **not** set `android:pageSizeCompat` to mask
 failures.
 
-If `LOAD` alignment passes but `GNU_RELRO` fails on a 64-bit `.so`, stop and
-report `STATUS: BLOCKED` — do not add linker flags ad hoc (Issue #2).
+### 16 KB defensive build invariant (SDK-038 lead-approved enforcement)
+
+**Background:** NDK r28+ sets `PT_LOAD` alignment to `0x4000` via the ELF linker
+script. However, the `android.toolchain.cmake` (non-legacy, used by AGP 8.x) does
+**not** inject `-Wl,-z,max-page-size=16384` by default. LLD 21 (NDK r29) uses
+4096-byte page size for `GNU_RELRO` end padding unless told otherwise — so the
+RELRO end is aligned to 4 KB, not 16 KB, causing the SDK-038 validator to FAIL.
+
+**Lead decision (2026-09-24):** After confirming NDK r29 + LLD 21 are the correct
+pinned toolchain and that no 4 KB override exists, the lead explicitly authorised
+adding these flags to the `omnixvoice` final shared-library target in
+`android/CMakeLists.txt`:
+
+```
+-Wl,-z,max-page-size=16384
+-Wl,-z,common-page-size=16384
+```
+
+**Why both flags are required:**
+- `-z max-page-size=16384` — instructs LLD to round up the `GNU_RELRO` end to a
+  16 KB boundary. Required for `(VirtAddr + MemSiz) % 0x4000 == 0`.
+- `-z common-page-size=16384` — aligns common-section (BSS/data) allocations to
+  16 KB, preventing underaligned load addresses on 16 KB devices.
+
+**Affected target:** `omnixvoice` (produces `libomnixvoice.so`) in
+`android/CMakeLists.txt` only. Scoped to `if(ANDROID)`.
+
+**This is not a workaround.** It is an explicit defensive build invariant required
+for Omnix Android artifacts to be 16 KB page-compatible as mandated by
+[Android guidance](https://developer.android.com/guide/practices/page-sizes).
+The validator (`scripts/verify-16kb-alignment.ps1 / .sh`) and its strict
+semantics remain unchanged.
+
+**Verification:**
+```powershell
+# After clean assembleRelease:
+& llvm-readelf.exe -lW android/build/intermediates/cxx/RelWithDebInfo/.../arm64-v8a/libomnixvoice.so | Select-String RELRO
+# VirtAddr + MemSiz must be a multiple of 0x4000
+```
 
 ### Build commands
 
