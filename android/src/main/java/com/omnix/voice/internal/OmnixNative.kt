@@ -2,7 +2,7 @@ package com.omnix.voice.internal
 
 /**
  * Internal JNI declarations for libomnixvoice.so (SDK-031).
- * Public Kotlin facade lands in SDK-032 (OmnixVoice — no `external`).
+ * Public Kotlin facade: [com.omnix.voice.OmnixVoice] (no `external`).
  *
  * Placeholders only; no secrets.
  */
