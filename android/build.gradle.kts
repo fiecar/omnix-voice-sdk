@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
 }
 
 group = "com.omnix.voice"
@@ -47,6 +48,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     externalNativeBuild {
         cmake {
             path = file("CMakeLists.txt")
@@ -61,6 +66,10 @@ android {
     }
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
 dependencies {
-    // No third-party JVM deps in SDK-030 (native CMake only).
+    // No third-party JVM deps (native CMake + Kotlin stdlib from AGP).
 }

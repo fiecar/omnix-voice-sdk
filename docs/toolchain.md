@@ -11,6 +11,7 @@ Exact versions for reproducible Android (and later iOS / React Native) builds.
 | Android Gradle Plugin (AGP) | **8.9.1** | Exact pin (no `8.+`). compileSdk 36 floor. |
 | Gradle (wrapper) | **8.11.1** | AGP 8.9.x compatibility table minimum. |
 | JDK | **17** | AGP 8.9 requirement. |
+| Kotlin | **2.0.21** | Android library + JNI stubs (SDK-031). Exact pin (no floating). |
 | compileSdk | **36** | Library module only; host app owns `targetSdk`. |
 | minSdk | **26** | AAudio / Omnix MVP floor. No support below 26. |
 | ABIs | `arm64-v8a`, `armeabi-v7a`, `x86_64` | One `libomnixvoice.so` per ABI. |
