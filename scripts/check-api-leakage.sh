@@ -69,4 +69,35 @@ if [[ -d "$KT_DIR" ]]; then
   done < <(find "$KT_DIR" -maxdepth 1 -type f -name '*.kt' -print0)
 fi
 
+# SDK-040+: public Objective-C bridge headers (ios/Sources/OmnixVoiceBridge/*.h)
+OBJC_DIR="$ROOT/ios/Sources/OmnixVoiceBridge"
+if [[ -d "$OBJC_DIR" ]]; then
+  OBJC_PATTERNS=(
+    'baresip\.h'
+    '[[:space:]]re\.h'
+    'struct[[:space:]]+ua'
+    'struct[[:space:]]+call'
+    'struct[[:space:]]+account'
+    'struct[[:space:]]+mqueue'
+    'enum[[:space:]]+ua_event'
+    'mem_alloc'
+    'mem_deref'
+  )
+  while IFS= read -r -d '' h; do
+    if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$h"; then
+      fail "$h includes baresip.h"
+    fi
+    if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$h"; then
+      fail "$h includes re.h"
+    fi
+    for pat in "${OBJC_PATTERNS[@]}"; do
+      if grep -En "$pat" "$h" | grep -Ev 'MUST NOT|must not|Baresip/re|no Baresip' >/dev/null; then
+        echo "check-api-leakage: matched /$pat/ in $h" >&2
+        grep -En "$pat" "$h" >&2 || true
+        fail "API leakage in $h"
+      fi
+    done
+  done < <(find "$OBJC_DIR" -maxdepth 1 -type f -name '*.h' -print0)
+fi
+
 echo "check-api-leakage: PASS"

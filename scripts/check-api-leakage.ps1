@@ -110,6 +110,45 @@ if (Test-Path -LiteralPath $kotlinPublicDir) {
     }
 }
 
+# SDK-040+: public Objective-C bridge headers
+$objcDir = Join-Path $RepoRoot 'ios/Sources/OmnixVoiceBridge'
+$objcForbidden = @(
+    '(?i)baresip\.h',
+    '(?i)\bre\.h\b',
+    '(?i)\bstruct\s+ua\b',
+    '(?i)\bstruct\s+call\b',
+    '(?i)\bstruct\s+account\b',
+    '(?i)\bstruct\s+mqueue\b',
+    '(?i)\benum\s+ua_event',
+    '\bmem_alloc\b',
+    '\bmem_deref\b'
+)
+
+if (Test-Path -LiteralPath $objcDir) {
+    $hFiles = Get-ChildItem -LiteralPath $objcDir -Filter '*.h' -File
+    foreach ($h in $hFiles) {
+        $text = Get-Content -LiteralPath $h.FullName -Raw
+        if ($text -match '(?i)#\s*include\s*[<"]baresip\.h[>"]') {
+            $failures += "$($h.FullName): includes baresip.h"
+        }
+        if ($text -match '(?i)#\s*include\s*[<"]re\.h[>"]') {
+            $failures += "$($h.FullName): includes re.h"
+        }
+        $lineNo = 0
+        foreach ($line in (Get-Content -LiteralPath $h.FullName)) {
+            $lineNo++
+            if ($line -match 'MUST NOT|must not|Baresip/re|no Baresip') {
+                continue
+            }
+            foreach ($pat in $objcForbidden) {
+                if ($line -match $pat) {
+                    $failures += "$($h.FullName):${lineNo}: matched /$pat/ -> $line"
+                }
+            }
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "check-api-leakage: FAIL"
     $failures | ForEach-Object { Write-Host "  $_" }
