@@ -44,6 +44,8 @@ struct omnix_state {
 	char *fp_codecs;
 	char *password_for_filter; /* Omnix-owned copy used only for log redaction */
 	void *mqueue; /* opaque: struct mqueue* */
+	/* SDK-021: speaker preference (platform applies route in SDK-034/042). */
+	bool speaker_enabled;
 };
 
 struct omnix_state *omnix_state_get(void);
@@ -97,6 +99,8 @@ int omnix_test_inject_call_closed(const char *call_id, const char *str);
 int omnix_test_ensure_call_audio(const char *call_id);
 /* Test/SDK-020: audio local SDP dir after mute (0=INACTIVE…3=SENDRECV), -1 err. */
 int omnix_test_call_audio_ldir(const char *call_id);
+/* Test/SDK-021: stored speaker preference (0/1); -1 if not initialized. */
+int omnix_test_speaker_enabled(void);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);
