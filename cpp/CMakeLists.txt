@@ -232,6 +232,12 @@ endif()
 # -----------------------------------------------------------------------------
 # baresip (finds re via FindRE + re-config.cmake under third_party/re/cmake)
 # -----------------------------------------------------------------------------
+# ios-cmake defaults CMAKE_MACOSX_BUNDLE=ON which makes baresip's CLI
+# `baresip_exe` a MACOSX_BUNDLE and breaks upstream install() (BUNDLE DESTINATION
+# required). Omnix only needs libbaresip.a — disable bundling for the exe.
+if(IOS)
+  set(CMAKE_MACOSX_BUNDLE OFF CACHE BOOL "Disable Mac/iOS bundle for baresip_exe" FORCE)
+endif()
 add_subdirectory("${OMNIX_BARESIP_SRC}" "${CMAKE_CURRENT_BINARY_DIR}/baresip_build")
 
 # -----------------------------------------------------------------------------
