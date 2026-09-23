@@ -36,6 +36,7 @@ build_one() {
     -DPLATFORM="$platform" \
     -DDEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
     -DENABLE_BITCODE=OFF \
+    -DCMAKE_MACOSX_BUNDLE=OFF \
     -DSTATIC=ON \
     -DOMNIX_OPENSSL_ROOT="$openssl_root" \
     -DOMNIX_BUILD_TESTS=OFF
