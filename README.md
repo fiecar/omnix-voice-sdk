@@ -22,7 +22,8 @@ packages will land in subsequent `SDK-XXX` tasks.
 
 See [docs/integration-android.md](docs/integration-android.md) for host-app
 permissions (`RECORD_AUDIO` runtime request before `initialize()`), call audio
-focus / speaker routing (SDK-034), credentials, and MVP incoming-call limits.
+focus / speaker routing (SDK-034), release AAR packaging (`OmnixVoiceSDK-x.y.z.aar`,
+SDK-036), credentials, and MVP incoming-call limits.
 
 ## License
 

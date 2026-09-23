@@ -198,16 +198,36 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Verify libomnixvoice.so for all ABIs
+      - name: Verify OmnixVoiceSDK-x.y.z.aar contents (SDK-036)
         run: |
-          AAR=$(ls android/build/outputs/aar/*.aar | head -n1)
+          set -euo pipefail
+          # Exact versioned name only (ignore any stale *-release.aar leftovers).
+          shopt -s nullglob
+          AARS=(android/build/outputs/aar/OmnixVoiceSDK-[0-9]*.[0-9]*.[0-9]*.aar)
+          (( ${#AARS[@]} == 1 )) || {
+            echo "FAIL: expected exactly one OmnixVoiceSDK-x.y.z.aar, found: ${AARS[*]:-none}"
+            ls -la android/build/outputs/aar/ || true
+            exit 1
+          }
+          AAR="${AARS[0]}"
           echo "AAR=$AAR"
+          basen=$(basename "$AAR")
+          [[ "$basen" =~ ^OmnixVoiceSDK-[0-9]+\.[0-9]+\.[0-9]+\.aar$ ]] \
+            || { echo "FAIL: AAR name must be OmnixVoiceSDK-x.y.z.aar (got $basen)"; exit 1; }
           unzip -l "$AAR"
           for ABI in arm64-v8a armeabi-v7a x86_64; do
             unzip -l "$AAR" | grep -q "jni/$ABI/libomnixvoice.so" \
               || { echo "FAIL: missing jni/$ABI/libomnixvoice.so"; exit 1; }
             echo "OK: jni/$ABI/libomnixvoice.so"
           done
+          unzip -l "$AAR" | grep -q 'classes\.jar' \
+            || { echo "FAIL: missing classes.jar"; exit 1; }
+          unzip -l "$AAR" | grep -q 'AndroidManifest\.xml' \
+            || { echo "FAIL: missing AndroidManifest.xml"; exit 1; }
+          # Notices as asset or META-INF (SDK-036)
+          unzip -l "$AAR" | grep -E 'assets/THIRD_PARTY_NOTICES\.md|META-INF/THIRD_PARTY_NOTICES\.md' \
+            || { echo "FAIL: missing THIRD_PARTY_NOTICES.md in AAR"; exit 1; }
+          echo "OK: THIRD_PARTY_NOTICES.md packaged"
           # No unexpected .so (allowlist = libomnixvoice.so only)
           SOS=$(unzip -l "$AAR" | awk '/\.so$/ {print $NF}')
           echo "shipped .so entries:"
@@ -220,13 +240,13 @@ jobs:
               exit 1
             fi
           done <<< "$SOS"
-          echo "PASS: three ABIs, allowlist only"
+          echo "PASS: OmnixVoiceSDK-x.y.z.aar — three ABIs, classes.jar, manifest, notices, allowlist only"
 
       - name: Upload release AAR
         uses: actions/upload-artifact@v4
         with:
           name: omnix-voice-aar-${{ github.sha }}
-          path: android/build/outputs/aar/
+          path: android/build/outputs/aar/OmnixVoiceSDK-[0-9]*.[0-9]*.[0-9]*.aar
           if-no-files-found: error
           retention-days: 14
 
