@@ -158,6 +158,9 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # v3 default includes obsolete `tools` (removed from sdkmanager); platform-tools only.
+          packages: platform-tools
 
       - name: Install platform + build-tools + CMake + NDK pin
         run: |
