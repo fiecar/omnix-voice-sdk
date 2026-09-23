@@ -25,6 +25,7 @@ static bool g_ready_sync_inited;
 static bool g_re_ready;
 static bool g_stack_up; /* libre/baresip initialized (for fail-path cleanup) */
 static bool g_verify_tls_off_warned; /* SDK-025: sticky for host test */
+static bool g_srtp_off_warned; /* SDK-026: sticky for host test */
 
 struct omnix_state *omnix_state_get(void)
 {
@@ -220,6 +221,7 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 	omnix_ready_sync_init();
 	g_re_ready = false;
 	g_verify_tls_off_warned = false;
+	g_srtp_off_warned = false;
 
 	memset(&g_state, 0, sizeof(g_state));
 	omnix_call_registry_reset();
@@ -292,6 +294,19 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 			"SIP TLS certificate validation is DISABLED. "
 			"Do not use in production.\n");
 		g_verify_tls_off_warned = true;
+	}
+
+	/*
+	 * SDK-026: SRTP (dtls_srtp) is mandatory for MVP. enable_srtp MUST
+	 * default true; if callers pass false, warn and still force
+	 * account_set_mediaenc("dtls_srtp") — never allow clear RTP.
+	 */
+	if (!config->enable_srtp) {
+		warning("OmnixVoice: WARNING enable_srtp=false — "
+			"media encryption remains forced to dtls_srtp "
+			"(clear RTP is not supported). "
+			"Do not use enable_srtp=false in production.\n");
+		g_srtp_off_warned = true;
 	}
 
 	oerr = omnix_events_init();
@@ -465,4 +480,9 @@ const char *omnix_test_openssl_version(void)
 int omnix_test_warned_verify_tls_off(void)
 {
 	return g_verify_tls_off_warned ? 1 : 0;
+}
+
+int omnix_test_warned_srtp_off(void)
+{
+	return g_srtp_off_warned ? 1 : 0;
 }
