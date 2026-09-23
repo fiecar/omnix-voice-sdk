@@ -71,5 +71,6 @@ kotlin {
 }
 
 dependencies {
-    // No third-party JVM deps (native CMake + Kotlin stdlib from AGP).
+    // No third-party JVM deps for the shipped AAR (native CMake + Kotlin stdlib).
+    testImplementation("junit:junit:4.13.2")
 }

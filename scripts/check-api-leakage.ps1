@@ -78,6 +78,38 @@ foreach ($h in $publicHeaders) {
     }
 }
 
+# SDK-032+: public Kotlin API under com.omnix.voice (exclude internal/)
+$kotlinPublicDir = Join-Path $RepoRoot 'android/src/main/java/com/omnix/voice'
+$kotlinForbidden = @(
+    '(?i)\bbaresip\b',
+    '(?i)\bstruct\s+ua\b',
+    '(?i)\bstruct\s+call\b',
+    '(?i)\bstruct\s+account\b',
+    '\bre_',
+    '\bmem_alloc\b',
+    '\bmem_deref\b',
+    '\bexternal\b'
+)
+
+if (Test-Path -LiteralPath $kotlinPublicDir) {
+    $ktFiles = Get-ChildItem -LiteralPath $kotlinPublicDir -Filter '*.kt' -File
+    foreach ($kt in $ktFiles) {
+        $lineNo = 0
+        foreach ($line in (Get-Content -LiteralPath $kt.FullName)) {
+            $lineNo++
+            # Skip comments that document the no-leak rule
+            if ($line -match 'MUST NOT|must never|Baresip/re|no `external`|No `external`') {
+                continue
+            }
+            foreach ($pat in $kotlinForbidden) {
+                if ($line -match $pat) {
+                    $failures += "$($kt.FullName):${lineNo}: matched /$pat/ -> $line"
+                }
+            }
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "check-api-leakage: FAIL"
     $failures | ForEach-Object { Write-Host "  $_" }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fail if public Omnix headers leak Baresip/re types (Issue #1 §12).
+# Fail if public Omnix headers/APIs leak Baresip/re types (Issue #1 §12).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -44,5 +44,29 @@ for h in "${HEADERS[@]}"; do
     fi
   done
 done
+
+# SDK-032+: public Kotlin API (com.omnix.voice/*.kt — not internal/)
+KT_DIR="$ROOT/android/src/main/java/com/omnix/voice"
+if [[ -d "$KT_DIR" ]]; then
+  KT_PATTERNS=(
+    'baresip'
+    'struct[[:space:]]+ua'
+    'struct[[:space:]]+call'
+    'struct[[:space:]]+account'
+    '[[:space:]]re_'
+    'mem_alloc'
+    'mem_deref'
+    '[[:space:]]external[[:space:]]'
+  )
+  while IFS= read -r -d '' kt; do
+    for pat in "${KT_PATTERNS[@]}"; do
+      if grep -Eni "$pat" "$kt" | grep -Ev 'MUST NOT|must never|Baresip/re|no `external`|No `external`' >/dev/null; then
+        echo "check-api-leakage: matched /$pat/ in $kt" >&2
+        grep -Eni "$pat" "$kt" >&2 || true
+        fail "API leakage in $kt"
+      fi
+    done
+  done < <(find "$KT_DIR" -maxdepth 1 -type f -name '*.kt' -print0)
+fi
 
 echo "check-api-leakage: PASS"
