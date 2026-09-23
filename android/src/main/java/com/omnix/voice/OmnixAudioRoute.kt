@@ -1,7 +1,8 @@
 package com.omnix.voice
 
 /**
- * Audio output route (Issue #1 §20A / §19). Full device routing = SDK-034.
+ * Audio output route (Issue #1 §20A / §19).
+ * Android applies SPEAKER/EARPIECE via OmnixAudioRouter (SDK-034).
  */
 enum class OmnixAudioRoute {
     EARPIECE,
