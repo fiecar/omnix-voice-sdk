@@ -98,7 +98,8 @@ PY
 
 write_tree_sha256sums() {
   python3 - "$MANIFEST" "$ROOT" "$ROOT/third_party/TREE_SHA256SUMS" <<'PY'
-import hashlib, json, os, sys
+import hashlib, json, os, re, sys
+SKIP_RE = re.compile(r"\.(pem|key|p12|pfx|jks|keystore|dylib|so|dll|exe|a)$", re.I)
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 root = sys.argv[2]
 out = sys.argv[3]
@@ -111,6 +112,8 @@ for c in manifest["components"]:
         for name in sorted(filenames):
             path = os.path.join(dirpath, name)
             rel = os.path.relpath(path, root).replace("\\", "/")
+            if SKIP_RE.search(rel):
+                continue
             h = hashlib.sha256()
             with open(path, "rb") as f:
                 for chunk in iter(lambda: f.read(1024 * 1024), b""):

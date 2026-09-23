@@ -136,6 +136,14 @@ function Write-Sha256Sums([string]$RepoRoot, $Manifest) {
     [System.IO.File]::WriteAllText($path, $text, [System.Text.UTF8Encoding]::new($false))
 }
 
+function Test-OmnixSkippedVendoredRel([string]$Rel) {
+    # Files matching repo secret/binary ignores are present in upstream archives
+    # but must not be committed (GitHub secret scanning / *.pem gitignore).
+    # Keep TREE_SHA256SUMS aligned with what CI clones can verify.
+    $n = $Rel.ToLowerInvariant()
+    return ($n -match '\.(pem|key|p12|pfx|jks|keystore|dylib|so|dll|exe|a)$')
+}
+
 function Write-TreeSha256Sums([string]$RepoRoot, $Manifest) {
     $lines = New-Object System.Collections.Generic.List[string]
     foreach ($c in $Manifest.components) {
@@ -144,6 +152,7 @@ function Write-TreeSha256Sums([string]$RepoRoot, $Manifest) {
         $files = Get-ChildItem -LiteralPath $vendored -Recurse -File
         foreach ($f in $files) {
             $rel = $f.FullName.Substring($RepoRoot.Length).TrimStart('\', '/').Replace('\', '/')
+            if (Test-OmnixSkippedVendoredRel $rel) { continue }
             $hash = Get-FileSha256Lower $f.FullName
             $lines.Add(("{0}  {1}" -f $hash, $rel))
         }
