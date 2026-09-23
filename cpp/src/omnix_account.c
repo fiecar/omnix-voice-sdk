@@ -2,6 +2,7 @@
  * Omnix Voice — SIP account / UA from omnix_config_t (SDK-012).
  * AOR never contains the password; auth via account_set_auth_pass only.
  * SDK-027: G.711 baseline + codecs preference from omnix_config_t.codecs.
+ * SDK-028: optional stun_server → medianat=stun + account_set_stun_uri.
  */
 #include "omnix_internal.h"
 
@@ -9,6 +10,7 @@
 #include <baresip.h>
 
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 enum {
@@ -17,12 +19,96 @@ enum {
 	OMNIX_USER_MAX = 128,
 	OMNIX_CODECS_CFG_MAX = 256,
 	OMNIX_CODEC_TOKEN_MAX = 64,
+	OMNIX_STUN_URI_MAX = 256,
 };
 
 /* Issue #1 / SDK-027: public default preference (Opus ignored until SDK-067). */
 #define OMNIX_CODECS_DEFAULT "opus,pcmu,pcma"
 
 static bool g_codec_missing_warned; /* sticky for host tests */
+static bool g_stun_module_loaded; /* SDK-028: unload only if we loaded it */
+
+/**
+ * Normalize omnix_config_t.stun_server into a Baresip stun URI.
+ * Accepts "stun:host[:port]", "stuns:host[:port]", or bare "host[:port]".
+ * Rejects turn:/turns: (POST-MVP) with OMNIX_ERR_NOT_SUPPORTED.
+ */
+static omnix_error_t omnix_normalize_stun_uri(const char *cfg, char *out,
+					      size_t out_len)
+{
+	if (!cfg || cfg[0] == '\0' || !out || out_len == 0) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+	if (0 == strncmp(cfg, "turn:", 5) ||
+	    0 == strncmp(cfg, "turns:", 6) ||
+	    0 == strncmp(cfg, "TURN:", 5) ||
+	    0 == strncmp(cfg, "TURNS:", 6)) {
+		warning("OmnixVoice: TURN not supported in MVP (SDK-028); "
+			"use stun: URI only\n");
+		return OMNIX_ERR_NOT_SUPPORTED;
+	}
+	if (0 == strncmp(cfg, "stun:", 5) ||
+	    0 == strncmp(cfg, "stuns:", 6) ||
+	    0 == strncmp(cfg, "STUN:", 5) ||
+	    0 == strncmp(cfg, "STUNS:", 6)) {
+		if (strlen(cfg) >= out_len) {
+			return OMNIX_ERR_INVALID_CONFIG;
+		}
+		memcpy(out, cfg, strlen(cfg) + 1);
+		return OMNIX_ERR_OK;
+	}
+	/* Bare host[:port] → stun:host[:port] */
+	if (re_snprintf(out, out_len, "stun:%s", cfg) < 0) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+	return OMNIX_ERR_OK;
+}
+
+/**
+ * SDK-028: when stun_server is set, preload stun mnat and wire account.
+ * Unset → leave medianat/stun_uri empty (no STUN).
+ */
+static omnix_error_t omnix_account_apply_stun(struct account *acc,
+					      const char *stun_cfg)
+{
+	char uri[OMNIX_STUN_URI_MAX];
+	omnix_error_t oerr;
+	int err;
+
+	if (!acc) {
+		return OMNIX_ERR_INTERNAL;
+	}
+	if (!stun_cfg || stun_cfg[0] == '\0') {
+		return OMNIX_ERR_OK;
+	}
+
+	oerr = omnix_normalize_stun_uri(stun_cfg, uri, sizeof(uri));
+	if (oerr != OMNIX_ERR_OK) {
+		return oerr;
+	}
+
+	err = module_preload("stun");
+	if (err && err != EALREADY) {
+		warning("OmnixVoice: module_preload(stun) failed: %m\n", err);
+		return OMNIX_ERR_INITIALIZATION;
+	}
+	g_stun_module_loaded = true;
+
+	err = account_set_medianat(acc, "stun");
+	if (err) {
+		warning("OmnixVoice: account_set_medianat(stun) failed: %m\n",
+			err);
+		return OMNIX_ERR_INITIALIZATION;
+	}
+
+	err = account_set_stun_uri(acc, uri);
+	if (err) {
+		warning("OmnixVoice: account_set_stun_uri failed: %m\n", err);
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+
+	return OMNIX_ERR_OK;
+}
 
 /**
  * Filter omnix_config_t.codecs to codecs actually registered in
@@ -331,6 +417,7 @@ omnix_error_t omnix_account_setup(const omnix_config_t *config)
 	}
 
 	g_codec_missing_warned = false;
+	g_stun_module_loaded = false;
 
 	re_thread_enter();
 
@@ -409,6 +496,17 @@ omnix_error_t omnix_account_setup(const omnix_config_t *config)
 	}
 
 	/*
+	 * SDK-028: optional STUN via stun_server. Unset → no medianat/stun.
+	 * TURN/ICE are POST-MVP (docs/nat-traversal-phase2.md).
+	 */
+	oerr = omnix_account_apply_stun(acc, config->stun_server);
+	if (oerr != OMNIX_ERR_OK) {
+		mem_deref(ua);
+		ua = NULL;
+		goto out_leave;
+	}
+
+	/*
 	 * Outbound proxy from sip_server (SDK-012 deferred → SDK-013).
 	 * REGISTER is sent to this URI; AOR domain may differ.
 	 */
@@ -459,6 +557,10 @@ void omnix_account_teardown(void)
  */
 void omnix_account_unload_modules(void)
 {
+	if (g_stun_module_loaded) {
+		module_unload("stun");
+		g_stun_module_loaded = false;
+	}
 	module_unload("g711");
 	module_unload("dtls_srtp");
 }
@@ -635,4 +737,54 @@ int omnix_test_aucodec_g711_present(void)
 int omnix_test_warned_codec_missing(void)
 {
 	return g_codec_missing_warned ? 1 : 0;
+}
+
+const char *omnix_test_account_medianat(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	return acc ? account_medianat(acc) : NULL;
+}
+
+const char *omnix_test_account_stun_uri(void)
+{
+	static char buf[OMNIX_STUN_URI_MAX];
+	struct omnix_state *st = omnix_state_get();
+	struct account *acc;
+	const struct stun_uri *su;
+	int n;
+
+	if (!st || !st->ua) {
+		return NULL;
+	}
+	acc = ua_account(st->ua);
+	if (!acc) {
+		return NULL;
+	}
+	su = account_stun_uri(acc);
+	if (!su) {
+		return NULL;
+	}
+	n = re_snprintf(buf, sizeof(buf), "%H", stunuri_print, su);
+	if (n < 0) {
+		return NULL;
+	}
+	return buf;
+}
+
+int omnix_test_mnat_stun_present(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	const struct mnat *m;
+
+	if (!st || !st->initialized) {
+		return -1;
+	}
+	m = mnat_find(baresip_mnatl(), "stun");
+	return m ? 1 : 0;
 }

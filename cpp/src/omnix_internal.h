@@ -128,6 +128,12 @@ const char *omnix_test_account_codec_name(unsigned idx);
 int omnix_test_aucodec_g711_present(void);
 /* Test/SDK-027: 1 if a configured codec was skipped (not compiled in). */
 int omnix_test_warned_codec_missing(void);
+/* Test/SDK-028: account medianat id ("stun" or NULL). */
+const char *omnix_test_account_medianat(void);
+/* Test/SDK-028: formatted stun URI from account (NULL if unset). */
+const char *omnix_test_account_stun_uri(void);
+/* Test/SDK-028: 1 if mnat_find(stun) after init with STUN configured. */
+int omnix_test_mnat_stun_present(void);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);
