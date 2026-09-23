@@ -1,6 +1,7 @@
 /**
  * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017)
- * + answer/reject (SDK-018) + hangup / CLOSED (SDK-019) + mute (SDK-020).
+ * + answer/reject (SDK-018) + hangup / CLOSED (SDK-019) + mute (SDK-020)
+ * + DTMF (SDK-022).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
@@ -21,6 +22,7 @@ int call_streams_alloc(struct call *call);
 #define OMNIX_MAX_CALLS 8
 
 static omnix_call_entry_t g_calls[OMNIX_MAX_CALLS];
+static char g_last_dtmf_digit; /* test observability (SDK-022) */
 
 static void omnix_call_finalize_closed(omnix_call_entry_t *entry,
 				       struct call *call, const char *str);
@@ -824,11 +826,84 @@ omnix_error_t omnix_call_set_mute(const char *call_id, bool mute)
 	return OMNIX_ERR_OK;
 }
 
+/**
+ * Issue #2 SDK-022: digit must be 0-9, *, #, or A-D (case-insensitive a-d).
+ * Returns true if valid for RFC 2833 / telephone-event.
+ */
+static bool omnix_dtmf_digit_valid(char digit)
+{
+	if (digit >= '0' && digit <= '9') {
+		return true;
+	}
+	if (digit == '*' || digit == '#') {
+		return true;
+	}
+	if (digit >= 'A' && digit <= 'D') {
+		return true;
+	}
+	if (digit >= 'a' && digit <= 'd') {
+		return true;
+	}
+	return false;
+}
+
 omnix_error_t omnix_call_send_dtmf(const char *call_id, char digit)
 {
-	(void)call_id;
-	(void)digit;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	struct call *call;
+	int err;
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!omnix_dtmf_digit_valid(digit)) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	call = entry->baresip_call;
+	/*
+	 * Issue #2 SDK-022: call_send_digit() inside re lock.
+	 * KEYCODE_REL ends the tone (baresip menu / test pattern).
+	 * Host unit test asserts validation + OK after streams alloc;
+	 * "DTMF received by SIP server" is gate H-3 / SDK-065.
+	 */
+	err = call_send_digit(call, digit);
+	if (!err) {
+		err = call_send_digit(call, KEYCODE_REL);
+	}
+	if (!err) {
+		g_last_dtmf_digit = digit;
+	}
+	re_thread_leave();
+
+	if (err == EINVAL) {
+		return OMNIX_ERR_INVALID_CONFIG;
+	}
+	if (err) {
+		return OMNIX_ERR_CALL_FAILED;
+	}
+	return OMNIX_ERR_OK;
+}
+
+void omnix_test_reset_last_dtmf(void)
+{
+	g_last_dtmf_digit = 0;
+}
+
+char omnix_test_last_dtmf_digit(void)
+{
+	return g_last_dtmf_digit;
 }
 
 omnix_error_t omnix_call_transfer_blind(const char *call_id,
