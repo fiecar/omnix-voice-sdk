@@ -76,6 +76,11 @@ typedef struct {
     const char *auth_user;
     const char *sip_password;
     const char *display_name;
+    /*
+     * Optional STUN server for media NAT (SDK-028 / F-8). NULL/empty → no
+     * STUN. Value is a stun: / stuns: URI, or host[:port] (wrapped as stun:).
+     * TURN / full ICE are POST-MVP — turn: URIs → OMNIX_ERR_NOT_SUPPORTED.
+     */
     const char *stun_server;
     /* MUST default to true (Issue #1 §16 / SDK-025). Never ship false silently. */
     bool verify_tls_cert;

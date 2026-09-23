@@ -180,6 +180,11 @@ list(FIND OMNIX_BARESIP_MODULES "g711" _omnix_mod_g711)
 if(_omnix_mod_g711 EQUAL -1)
   message(FATAL_ERROR "SDK-027: OMNIX_BARESIP_MODULES must include g711")
 endif()
+# SDK-028: stun mnat module required (TURN/ICE remain POST-MVP).
+list(FIND OMNIX_BARESIP_MODULES "stun" _omnix_mod_stun)
+if(_omnix_mod_stun EQUAL -1)
+  message(FATAL_ERROR "SDK-028: OMNIX_BARESIP_MODULES must include stun")
+endif()
 # Guard: never pull in opus until SDK-067 pins third_party/opus.
 list(FIND OMNIX_BARESIP_MODULES "opus" _omnix_mod_opus)
 if(NOT _omnix_mod_opus EQUAL -1)
@@ -375,6 +380,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_codecs PRIVATE omnix_voice)
+
+  add_executable(test_stun
+    "${OMNIX_REPO_ROOT}/tests/native/test_stun.c"
+  )
+  target_include_directories(test_stun PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_stun PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary
