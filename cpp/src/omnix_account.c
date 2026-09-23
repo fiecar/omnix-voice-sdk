@@ -264,6 +264,10 @@ omnix_error_t omnix_account_setup(const omnix_config_t *config)
 		oerr = OMNIX_ERR_INITIALIZATION;
 		goto out_leave;
 	}
+	/*
+	 * SDK-026: mediaenc is always dtls_srtp (MVP MUST). enable_srtp=false
+	 * still ends here after a WARNING in omnix_init — clear RTP forbidden.
+	 */
 
 	/*
 	 * Outbound proxy from sip_server (SDK-012 deferred → SDK-013).
@@ -377,6 +381,18 @@ const char *omnix_test_account_mediaenc(void)
 	}
 	acc = ua_account(st->ua);
 	return acc ? account_mediaenc(acc) : NULL;
+}
+
+int omnix_test_menc_dtls_srtp_present(void)
+{
+	struct omnix_state *st = omnix_state_get();
+	const struct menc *m;
+
+	if (!st || !st->initialized) {
+		return -1;
+	}
+	m = menc_find(baresip_mencl(), "dtls_srtp");
+	return m ? 1 : 0;
 }
 
 const char *omnix_test_account_auth_user(void)

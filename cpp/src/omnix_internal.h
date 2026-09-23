@@ -69,6 +69,8 @@ const char *omnix_test_account_aor(void);
 const char *omnix_test_account_aor_built(void);
 int omnix_test_account_has_tls_transport(void);
 const char *omnix_test_account_mediaenc(void);
+/* Test/SDK-026: 1 if menc_find(dtls_srtp) after init; -1 if not ready. */
+int omnix_test_menc_dtls_srtp_present(void);
 const char *omnix_test_account_auth_user(void);
 const char *omnix_test_account_display_name(void);
 const char *omnix_test_account_outbound(void);
@@ -116,6 +118,8 @@ int omnix_test_sip_tls_only(void);
 const char *omnix_test_openssl_version(void);
 /* Test/SDK-025: 1 if init logged verify_tls_cert=false WARNING. */
 int omnix_test_warned_verify_tls_off(void);
+/* Test/SDK-026: 1 if init logged enable_srtp=false WARNING. */
+int omnix_test_warned_srtp_off(void);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);

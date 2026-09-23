@@ -166,6 +166,16 @@ set(OMNIX_BARESIP_MODULES
 )
 set(MODULES "${OMNIX_BARESIP_MODULES}" CACHE STRING "Baresip modules for Omnix" FORCE)
 
+# SDK-026: dtls_srtp (+ srtp) must remain in the static module list.
+list(FIND OMNIX_BARESIP_MODULES "dtls_srtp" _omnix_mod_dtls_srtp)
+if(_omnix_mod_dtls_srtp EQUAL -1)
+  message(FATAL_ERROR "SDK-026: OMNIX_BARESIP_MODULES must include dtls_srtp")
+endif()
+list(FIND OMNIX_BARESIP_MODULES "srtp" _omnix_mod_srtp)
+if(_omnix_mod_srtp EQUAL -1)
+  message(FATAL_ERROR "SDK-026: OMNIX_BARESIP_MODULES must include srtp")
+endif()
+
 # -----------------------------------------------------------------------------
 # baresip (finds re via FindRE + re-config.cmake under third_party/re/cmake)
 # -----------------------------------------------------------------------------
@@ -337,6 +347,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_tls PRIVATE omnix_voice)
+
+  add_executable(test_srtp
+    "${OMNIX_REPO_ROOT}/tests/native/test_srtp.c"
+  )
+  target_include_directories(test_srtp PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_srtp PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary

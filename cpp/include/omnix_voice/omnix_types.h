@@ -79,7 +79,10 @@ typedef struct {
     const char *stun_server;
     /* MUST default to true (Issue #1 §16 / SDK-025). Never ship false silently. */
     bool verify_tls_cert;
-    /* MUST default to true (Issue #1 §16). */
+    /*
+     * MUST default to true (Issue #1 §16 / SDK-026). MVP always forces
+     * account mediaenc to dtls_srtp; false logs a WARNING and still encrypts.
+     */
     bool enable_srtp;
     const char *audio_module;
     const char *codecs;
