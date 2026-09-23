@@ -51,6 +51,19 @@ android/build/outputs/aar/OmnixVoiceSDK-0.1.0.aar
 `AndroidManifest.xml`, and `assets/THIRD_PARTY_NOTICES.md` (copied from repo
 root at build time). No unlisted `.so` files.
 
+### ABI verification (SDK-037)
+
+```powershell
+pwsh -File scripts/verify-abi.ps1 -Aar android/build/outputs/aar/OmnixVoiceSDK-0.1.0.aar
+```
+
+```bash
+scripts/verify-abi.sh android/build/outputs/aar/OmnixVoiceSDK-*.aar
+```
+
+Both scripts require `jni/{arm64-v8a,armeabi-v7a,x86_64}/libomnixvoice.so` and
+exit non-zero if any ABI is missing. CI calls the `.sh` after `assembleRelease`.
+
 ### Build commands
 
 ```powershell

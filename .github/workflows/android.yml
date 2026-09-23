@@ -215,11 +215,9 @@ jobs:
           [[ "$basen" =~ ^OmnixVoiceSDK-[0-9]+\.[0-9]+\.[0-9]+\.aar$ ]] \
             || { echo "FAIL: AAR name must be OmnixVoiceSDK-x.y.z.aar (got $basen)"; exit 1; }
           unzip -l "$AAR"
-          for ABI in arm64-v8a armeabi-v7a x86_64; do
-            unzip -l "$AAR" | grep -q "jni/$ABI/libomnixvoice.so" \
-              || { echo "FAIL: missing jni/$ABI/libomnixvoice.so"; exit 1; }
-            echo "OK: jni/$ABI/libomnixvoice.so"
-          done
+          # SDK-037 — shared ABI verify script (identical semantics to verify-abi.ps1)
+          chmod +x scripts/verify-abi.sh
+          scripts/verify-abi.sh "$AAR"
           unzip -l "$AAR" | grep -q 'classes\.jar' \
             || { echo "FAIL: missing classes.jar"; exit 1; }
           unzip -l "$AAR" | grep -q 'AndroidManifest\.xml' \
