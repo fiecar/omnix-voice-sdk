@@ -7,6 +7,8 @@ project(omnixvoice_android C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Prefer hidden visibility for all translation units in this tree.
@@ -24,15 +26,16 @@ get_filename_component(OMNIX_REPO_ROOT "${OMNIX_ANDROID_DIR}/.." ABSOLUTE)
 # Build static native stack (re, baresip, omnix_voice) from repo cpp/.
 add_subdirectory("${OMNIX_REPO_ROOT}/cpp" omnix_cpp_build)
 
-# Thin shared wrapper. JNI entry points are added in SDK-031; this TU keeps a
-# live reference so the linker retains the Omnix C facade under LTO/GC.
+# Shared wrapper: Android anchor + JNI bridge (SDK-031).
 add_library(omnixvoice SHARED
   src/main/cpp/omnixvoice_android.c
+  src/main/cpp/jni/omnix_jni.cpp
 )
 
 target_include_directories(omnixvoice
   PRIVATE
     "${OMNIX_REPO_ROOT}/cpp/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/jni"
 )
 
 # Force-link static archives so Baresip module constructors are retained.
