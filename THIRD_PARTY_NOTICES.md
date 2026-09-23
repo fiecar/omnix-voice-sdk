@@ -144,6 +144,26 @@ license text is distributed with Omnix Voice binaries as
 
 ---
 
+## ios-cmake
+
+| Field | Value |
+|-------|-------|
+| Component | ios-cmake |
+| Repository | https://github.com/leetal/ios-cmake |
+| Version | 4.6.0 |
+| Commit | `cfaac240732eadc1a42d1869f606db2b96a8b09d` |
+| License | BSD-3-Clause |
+| License file | `LICENSES/ios-cmake-LICENSE.txt` |
+| Vendored path | `third_party/ios-cmake/` |
+
+### Copyright notice and license
+
+The ios-cmake toolchain (SDK-039) is licensed under the BSD 3-Clause License.
+The complete verbatim license text is distributed with Omnix Voice binaries as
+`LICENSES/ios-cmake-LICENSE.txt` (copied from `third_party/ios-cmake/LICENSE.md`).
+
+---
+
 ## libopus (placeholder — SDK-067, MVP SHOULD)
 
 | Field | Value |

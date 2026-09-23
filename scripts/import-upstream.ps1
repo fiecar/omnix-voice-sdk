@@ -271,12 +271,12 @@ try {
     $sourceTree = $top[0].FullName
 
     $licensePath = $null
-    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'LICENSE.md', 'COPYING')) {
         $p = Join-Path $sourceTree $cand
         if (Test-Path -LiteralPath $p) { $licensePath = $p; break }
     }
     if (-not $licensePath) {
-        Fail "LICENSE/LICENSE.txt/COPYING missing in extracted tree"
+        Fail "LICENSE/LICENSE.txt/LICENSE.md/COPYING missing in extracted tree"
     }
 
     # Stage tree (contents of top-level dir)
@@ -286,7 +286,7 @@ try {
     if ($LASTEXITCODE -ne 0) { Fail "Failed to stage extracted tree" }
 
     $stageLicense = $null
-    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'LICENSE.md', 'COPYING')) {
         $p = Join-Path $stagePath $cand
         if (Test-Path -LiteralPath $p) { $stageLicense = $p; break }
     }
@@ -328,7 +328,7 @@ try {
     New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
     $licenseDest = Join-Path $licensesDir ("{0}-LICENSE.txt" -f $Component)
     $vendoredLicense = $null
-    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'COPYING')) {
+    foreach ($cand in @('LICENSE', 'LICENSE.txt', 'LICENSE.md', 'COPYING')) {
         $p = Join-Path $vendoredPath $cand
         if (Test-Path -LiteralPath $p) { $vendoredLicense = $p; break }
     }

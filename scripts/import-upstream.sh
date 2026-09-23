@@ -229,18 +229,18 @@ mapfile -t TOP < <(find "$EXTRACT" -mindepth 1 -maxdepth 1 -type d)
 SOURCE_TREE="${TOP[0]}"
 
 LICENSE_SRC=""
-for cand in LICENSE LICENSE.txt COPYING; do
+for cand in LICENSE LICENSE.txt LICENSE.md COPYING; do
   if [[ -f "$SOURCE_TREE/$cand" ]]; then
     LICENSE_SRC="$SOURCE_TREE/$cand"
     break
   fi
 done
-[[ -n "$LICENSE_SRC" ]] || fail "LICENSE/LICENSE.txt/COPYING missing in extracted tree"
+[[ -n "$LICENSE_SRC" ]] || fail "LICENSE/LICENSE.txt/LICENSE.md/COPYING missing in extracted tree"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 tar -cf - -C "$SOURCE_TREE" . | tar -xf - -C "$STAGE"
-if [[ ! -f "$STAGE/LICENSE" && ! -f "$STAGE/LICENSE.txt" && ! -f "$STAGE/COPYING" ]]; then
+if [[ ! -f "$STAGE/LICENSE" && ! -f "$STAGE/LICENSE.txt" && ! -f "$STAGE/LICENSE.md" && ! -f "$STAGE/COPYING" ]]; then
   fail "LICENSE missing after staging"
 fi
 
@@ -267,7 +267,7 @@ update_manifest_fields "$COMPONENT" "$COMPUTED" "$IMPORT_DATE"
 mkdir -p "$ROOT/LICENSES"
 LICENSE_DEST="$ROOT/LICENSES/${COMPONENT}-LICENSE.txt"
 LICENSE_VENDORED=""
-for cand in LICENSE LICENSE.txt COPYING; do
+for cand in LICENSE LICENSE.txt LICENSE.md COPYING; do
   if [[ -f "$VENDORED_PATH/$cand" ]]; then
     LICENSE_VENDORED="$VENDORED_PATH/$cand"
     break

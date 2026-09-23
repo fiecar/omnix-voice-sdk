@@ -12,6 +12,8 @@ re: tag=v4.11.0, commit=ceefe9ff499aa1bcfb6255aff1737434dd385322, release=2026-0
 
 OpenSSL: tag=openssl-3.5.8, commit=f4dc4d58b48d346a8270183f89acf826d459b0ca, release=2026-08-25, imported=2026-09-23, license=Apache-2.0, archive-sha256=14067f511684d80698ffe97b8ad7989b9271ef6eef1b4b115cb00966c13e89d3
 
+ios-cmake: tag=4.6.0, commit=cfaac240732eadc1a42d1869f606db2b96a8b09d, release=2026-08-06, imported=2026-09-24, license=BSD-3-Clause, archive-sha256=fbe456e18f43f7506a428e3b6b6e8307bd6a3bf835be1b4231e56a3c26adaeac
+
 <!-- IMPORT:baresip -->
 baresip: tag=v4.11.0, commit=3d30821f099925d24167f8a99e93ba4d1be98599, imported=2026-09-23, license=BSD-3-Clause, archive-sha256=148d0c743a71af19a436dba17c5d33a881e1c5e250ab100cf6b4729f0c7aa82c
 
@@ -38,6 +40,13 @@ openssl: tag=openssl-3.5.8, commit=f4dc4d58b48d346a8270183f89acf826d459b0ca, imp
 - NDK for this job: **r29** (`29.0.14206865`) — same pin as Android module (SDK-030 / `docs/toolchain.md`); gate H-2 approves in the SDK-030 PR
 - Output: static `libssl.a` / `libcrypto.a` only (`no-shared`); never ship `.so`
 
+## iOS static OpenSSL + native (SDK-039)
+
+- Canonical build: macOS CI (`.github/workflows/ios.yml`) via `scripts/build-openssl-ios.sh` + `ios/build-ios.sh`
+- Toolchain: vendored `third_party/ios-cmake` **4.6.0** @ `cfaac240732eadc1a42d1869f606db2b96a8b09d`
+- Platforms: `OS64` (device) + `SIMULATORARM64` (simulator); deployment target **iOS 15.0**
+- Output: `build/ios-device/libbaresip.a`, `build/ios-sim/libbaresip.a` (+ libre / omnix_voice)
+
 ## Update procedure
 
 Numbered steps from Issue #1 section 13 "Upgrade Procedure":
@@ -50,3 +59,8 @@ Numbered steps from Issue #1 section 13 "Upgrade Procedure":
 6. Re-apply all entries in `PATCHES.md`.
 7. Run `scripts/verify-third-party`, license scan, SBOM regeneration (`scripts/generate-sbom` + `scripts/verify-sbom`).
 8. Build, test, release.
+
+## Imported components
+
+<!-- IMPORT:ios-cmake -->
+ios-cmake: tag=4.6.0, commit=cfaac240732eadc1a42d1869f606db2b96a8b09d, imported=2026-09-24, license=BSD-3-Clause, archive-sha256=fbe456e18f43f7506a428e3b6b6e8307bd6a3bf835be1b4231e56a3c26adaeac
