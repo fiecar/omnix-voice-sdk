@@ -85,6 +85,12 @@ typedef struct {
      */
     bool enable_srtp;
     const char *audio_module;
+    /*
+     * Comma-separated codec preference (default when NULL/empty:
+     * "opus,pcmu,pcma"). Codecs not compiled in are ignored with a WARNING;
+     * if none remain → OMNIX_ERR_INVALID_CONFIG (SDK-027). Opus requires
+     * SDK-067; until then G.711 (pcmu/pcma) is the mandatory baseline.
+     */
     const char *codecs;
     omnix_reg_state_cb on_reg_state;
     omnix_call_event_cb on_call_event;

@@ -120,6 +120,14 @@ const char *omnix_test_openssl_version(void);
 int omnix_test_warned_verify_tls_off(void);
 /* Test/SDK-026: 1 if init logged enable_srtp=false WARNING. */
 int omnix_test_warned_srtp_off(void);
+/* Test/SDK-027: count of preferred codecs on the account after filter. */
+unsigned omnix_test_account_codec_count(void);
+/* Test/SDK-027: aucodec name at index (account preference order). */
+const char *omnix_test_account_codec_name(unsigned idx);
+/* Test/SDK-027: 1 if PCMU+PCMA registered globally after init; -1 if N/A. */
+int omnix_test_aucodec_g711_present(void);
+/* Test/SDK-027: 1 if a configured codec was skipped (not compiled in). */
+int omnix_test_warned_codec_missing(void);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);
