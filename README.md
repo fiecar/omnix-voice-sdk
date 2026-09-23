@@ -18,6 +18,12 @@ requirements are defined in:
 Repository bootstrap in progress. Native core, Android, iOS, and React Native
 packages will land in subsequent `SDK-XXX` tasks.
 
+## Android integration
+
+See [docs/integration-android.md](docs/integration-android.md) for host-app
+permissions (`RECORD_AUDIO` runtime request before `initialize()`), credentials,
+and MVP incoming-call limits.
+
 ## License
 
 Omnix Voice SDK source (outside `third_party/`) — see repository license when published.
