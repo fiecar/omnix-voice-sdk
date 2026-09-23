@@ -38,17 +38,32 @@ Configured in `cpp/CMakeLists.txt` (`OMNIX_BARESIP_MODULES`). MVP audio uses **o
 
 Pinned OpenSSL **3.5.8** static libs per ABI under `build/openssl-android/<abi>/` (CI artifact or `scripts/fetch-openssl-android.ps1`). Never system OpenSSL for Android artifacts.
 
+### Release AAR packaging (SDK-036)
+
+`.\gradlew.bat assembleRelease` produces:
+
+```
+android/build/outputs/aar/OmnixVoiceSDK-0.1.0.aar
+```
+
+(version = `android/build.gradle.kts` `version`). The AAR must contain
+`jni/{arm64-v8a,armeabi-v7a,x86_64}/libomnixvoice.so`, `classes.jar`,
+`AndroidManifest.xml`, and `assets/THIRD_PARTY_NOTICES.md` (copied from repo
+root at build time). No unlisted `.so` files.
+
 ### Build commands
 
 ```powershell
 # Windows (no WSL)
 cd android
 .\gradlew.bat assembleRelease
+tar -tf build/outputs/aar/OmnixVoiceSDK-0.1.0.aar | Select-String '\.so$|classes\.jar|THIRD_PARTY_NOTICES|AndroidManifest'
 ```
 
 ```bash
 # Linux/macOS CI
 cd android && ./gradlew assembleRelease
+unzip -l build/outputs/aar/OmnixVoiceSDK-*.aar | grep -E '\.so|classes|THIRD_PARTY_NOTICES|AndroidManifest'
 ```
 
 NDK cross-compile without Gradle (developer smoke):

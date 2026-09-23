@@ -1,3 +1,5 @@
+import com.android.build.gradle.tasks.BundleAar
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,15 @@ plugins {
 
 group = "com.omnix.voice"
 version = "0.1.0"
+
+// SDK-036: ship THIRD_PARTY_NOTICES.md inside the AAR (assets/), sourced from repo root.
+val noticesAssetDir = layout.buildDirectory.dir("generated/omnixNoticesAssets")
+val prepareThirdPartyNotices = tasks.register<Copy>("prepareThirdPartyNotices") {
+    description = "Copy repo-root THIRD_PARTY_NOTICES.md into Android assets for AAR packaging"
+    from(rootProject.file("../THIRD_PARTY_NOTICES.md"))
+    into(noticesAssetDir)
+    rename { "THIRD_PARTY_NOTICES.md" }
+}
 
 android {
     namespace = "com.omnix.voice"
@@ -63,6 +74,23 @@ android {
         jniLibs {
             keepDebugSymbols += setOf("**/libomnixvoice.so")
         }
+    }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(noticesAssetDir)
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(prepareThirdPartyNotices)
+}
+
+// SDK-036: release AAR must be named OmnixVoiceSDK-x.y.z.aar (not *-release.aar).
+tasks.withType<BundleAar>().configureEach {
+    if (name == "bundleReleaseAar") {
+        archiveFileName.set("OmnixVoiceSDK-${project.version}.aar")
     }
 }
 

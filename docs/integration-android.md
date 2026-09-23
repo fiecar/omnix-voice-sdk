@@ -5,6 +5,13 @@ Host-app requirements for consuming the Omnix Voice Android AAR (MVP).
 Placeholders only in examples: `sip.example.com`, `user@example.com`.
 Never put real SIP passwords, tokens, or customer hostnames in source or docs.
 
+## Consuming the release AAR (SDK-036)
+
+Build artifact name: `OmnixVoiceSDK-x.y.z.aar` (e.g. `OmnixVoiceSDK-0.1.0.aar`).
+It ships the three ABI `libomnixvoice.so` libraries, Kotlin classes, the merged
+manifest permissions below, and `assets/THIRD_PARTY_NOTICES.md` (must ship with
+binary distributions — see repo-root `THIRD_PARTY_NOTICES.md` / `LICENSES/`).
+
 ## Permissions (SDK-033)
 
 ### Manifest (merge)
