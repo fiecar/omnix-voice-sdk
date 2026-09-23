@@ -104,6 +104,10 @@ int omnix_test_speaker_enabled(void);
 /* Test/SDK-022: last digit accepted by omnix_call_send_dtmf; 0 if none. */
 char omnix_test_last_dtmf_digit(void);
 void omnix_test_reset_last_dtmf(void);
+/* Test/SDK-023: set Omnix entry state CONNECTED (host never ESTABLISHED). */
+int omnix_test_force_call_connected(const char *call_id);
+/* Test/SDK-023: Baresip call_is_onhold (1/0); -1 if call missing. */
+int omnix_test_call_is_onhold(const char *call_id);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);
