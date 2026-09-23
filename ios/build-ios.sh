@@ -40,7 +40,8 @@ build_one() {
     -DSTATIC=ON \
     -DOMNIX_OPENSSL_ROOT="$openssl_root" \
     -DOMNIX_BUILD_TESTS=OFF
-  cmake --build "$out_dir" --parallel "$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+  cmake --build "$out_dir" --parallel "$(sysctl -n hw.ncpu 2>/dev/null || echo 4)" \
+    --target baresip re omnix_voice
 
   # Locate static archives (baresip/re CMake output layout) and stage next to build root
   # for the SDK-039 acceptance paths.
