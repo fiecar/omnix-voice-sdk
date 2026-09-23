@@ -9,6 +9,9 @@
 #include <re.h>
 #include <baresip.h>
 
+#include <openssl/crypto.h>
+
+#include <stdio.h>
 #include <string.h>
 
 enum { OMNIX_ASYNC_WORKERS = 4 };
@@ -21,6 +24,7 @@ static cnd_t g_ready_cnd;
 static bool g_ready_sync_inited;
 static bool g_re_ready;
 static bool g_stack_up; /* libre/baresip initialized (for fail-path cleanup) */
+static bool g_verify_tls_off_warned; /* SDK-025: sticky for host test */
 
 struct omnix_state *omnix_state_get(void)
 {
@@ -215,6 +219,7 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 
 	omnix_ready_sync_init();
 	g_re_ready = false;
+	g_verify_tls_off_warned = false;
 
 	memset(&g_state, 0, sizeof(g_state));
 	omnix_call_registry_reset();
@@ -254,7 +259,7 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 		return OMNIX_ERR_INITIALIZATION;
 	}
 
-	/* TLS transport only — no plain SIP (Issue #1 security). */
+	/* TLS transport only — no plain SIP (Issue #1 / SDK-025). */
 	bcfg->sip.transports = (1u << SIP_TRANSP_TLS);
 	bcfg->sip.transp = SIP_TRANSP_TLS;
 	bcfg->sip.verify_server = config->verify_tls_cert;
@@ -266,8 +271,8 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 		return OMNIX_ERR_INITIALIZATION;
 	}
 
-	/* udp=false, tcp=false, tls=true — transports mask already TLS-only. */
-	err = ua_init("omnix-voice", false, false, true);
+	/* udp=false, tcp=false, tls=true — Issue #2 SDK-025. */
+	err = ua_init("OmnixVoice/0.1.0", false, false, true);
 	if (err) {
 		omnix_stack_teardown_partial();
 		return OMNIX_ERR_INITIALIZATION;
@@ -277,6 +282,17 @@ omnix_error_t omnix_init(const omnix_config_t *config)
 
 	omnix_log_handler_register();
 	omnix_test_reset_last_log();
+
+	/*
+	 * SDK-025: never disable cert validation silently. Log a prominent
+	 * WARNING on every init when verify_tls_cert is false.
+	 */
+	if (!config->verify_tls_cert) {
+		warning("OmnixVoice: WARNING verify_tls_cert=false — "
+			"SIP TLS certificate validation is DISABLED. "
+			"Do not use in production.\n");
+		g_verify_tls_off_warned = true;
+	}
 
 	oerr = omnix_events_init();
 	if (oerr != OMNIX_ERR_OK) {
@@ -397,4 +413,56 @@ omnix_reg_state_t omnix_get_reg_state(void)
 		return OMNIX_REG_UNINITIALIZED;
 	}
 	return g_state.reg_state;
+}
+
+/* --- SDK-025 test helpers (host / CI; not public API) --- */
+
+int omnix_test_sip_verify_server(void)
+{
+	struct config *bcfg;
+
+	if (!g_state.initialized) {
+		return -1;
+	}
+	bcfg = conf_config();
+	if (!bcfg) {
+		return -1;
+	}
+	return bcfg->sip.verify_server ? 1 : 0;
+}
+
+int omnix_test_sip_tls_only(void)
+{
+	struct config *bcfg;
+	uint32_t want = (1u << SIP_TRANSP_TLS);
+
+	if (!g_state.initialized) {
+		return -1;
+	}
+	bcfg = conf_config();
+	if (!bcfg) {
+		return -1;
+	}
+	if (bcfg->sip.transports != want) {
+		return 0;
+	}
+	if (bcfg->sip.transp != SIP_TRANSP_TLS) {
+		return 0;
+	}
+	return 1;
+}
+
+const char *omnix_test_openssl_version(void)
+{
+	/*
+	 * Runtime string from the linked OpenSSL (host may use system 3.x;
+	 * Android/iOS artifacts MUST use SDK-066 pinned 3.5.x via
+	 * OMNIX_OPENSSL_ROOT — never system OpenSSL).
+	 */
+	return OpenSSL_version(OPENSSL_VERSION);
+}
+
+int omnix_test_warned_verify_tls_off(void)
+{
+	return g_verify_tls_off_warned ? 1 : 0;
 }
