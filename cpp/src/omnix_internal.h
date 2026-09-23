@@ -101,6 +101,9 @@ int omnix_test_ensure_call_audio(const char *call_id);
 int omnix_test_call_audio_ldir(const char *call_id);
 /* Test/SDK-021: stored speaker preference (0/1); -1 if not initialized. */
 int omnix_test_speaker_enabled(void);
+/* Test/SDK-022: last digit accepted by omnix_call_send_dtmf; 0 if none. */
+char omnix_test_last_dtmf_digit(void);
+void omnix_test_reset_last_dtmf(void);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);

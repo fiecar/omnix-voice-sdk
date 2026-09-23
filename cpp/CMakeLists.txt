@@ -306,6 +306,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_speaker PRIVATE omnix_voice)
+
+  add_executable(test_dtmf
+    "${OMNIX_REPO_ROOT}/tests/native/test_dtmf.c"
+  )
+  target_include_directories(test_dtmf PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_dtmf PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary
