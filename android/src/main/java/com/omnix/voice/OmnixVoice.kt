@@ -5,6 +5,7 @@ import android.util.Log
 import com.omnix.voice.internal.OmnixEventDispatcher
 import com.omnix.voice.internal.OmnixNative
 import com.omnix.voice.internal.OmnixNativeCallback
+import com.omnix.voice.internal.OmnixPermissions
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -12,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * No `external` / JNI types. Baresip/re types must never appear here.
  * Password is passed to native once and is never persisted by this SDK.
+ * [initialize] requires [android.Manifest.permission.RECORD_AUDIO] (SDK-033).
  */
 object OmnixVoice {
     private const val TAG = "OmnixVoice"
@@ -92,6 +94,10 @@ object OmnixVoice {
     /**
      * Initialize the SDK. Stores [Context.getApplicationContext] only.
      * Does not write [OmnixVoiceConfig.sipPassword] to disk.
+     *
+     * Requires [android.Manifest.permission.RECORD_AUDIO] already granted.
+     * If missing, fires [OmnixVoiceListener.onError] with
+     * [OmnixErrorCode.PERMISSION_DENIED] and throws [OmnixVoiceException].
      */
     @JvmStatic
     fun initialize(context: Context, config: OmnixVoiceConfig) {
@@ -107,6 +113,15 @@ object OmnixVoice {
                     OmnixErrorCode.INVALID_CONFIGURATION,
                     "sipServer and sipUser are required",
                 )
+            }
+
+            // SDK-033: check only — host must request the runtime permission.
+            if (!OmnixPermissions.isRecordAudioGranted(context)) {
+                val detail = OmnixPermissions.RECORD_AUDIO_DETAIL
+                dispatcher.dispatch {
+                    it.onError(OmnixErrorCode.PERMISSION_DENIED, detail, null)
+                }
+                OmnixPermissions.requireRecordAudioGranted(false)
             }
 
             appContext = context.applicationContext
