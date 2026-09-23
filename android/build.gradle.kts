@@ -25,6 +25,8 @@ android {
     defaultConfig {
         minSdk = libs.versions.minSdk.get().toInt()
         consumerProguardFiles("consumer-rules.pro")
+        // SDK-038: instrumentation runner for Omnix16KbPageTest + zip-aligned test APK.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         externalNativeBuild {
             cmake {
@@ -101,4 +103,8 @@ kotlin {
 dependencies {
     // No third-party JVM deps for the shipped AAR (native CMake + Kotlin stdlib).
     testImplementation("junit:junit:4.13.2")
+    // SDK-038: 16 KB page-size instrumentation test (androidTest APK).
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
 }

@@ -64,6 +64,43 @@ scripts/verify-abi.sh android/build/outputs/aar/OmnixVoiceSDK-*.aar
 Both scripts require `jni/{arm64-v8a,armeabi-v7a,x86_64}/libomnixvoice.so` and
 exit non-zero if any ABI is missing. CI calls the `.sh` after `assembleRelease`.
 
+### 16 KB page-size verification (SDK-038)
+
+Every `.so` inside the release AAR (any path) is inventoried against
+`android/shipped-native-libs.txt`. For each library, **every** `PT_LOAD`
+`Align` must be ≥ `0x4000` and a power of two; `GNU_RELRO` end
+(`VirtAddr + MemSiz`) must be a multiple of 16384. `armeabi-v7a` violations
+are `WARN (32-bit, informational)` only; `arm64-v8a` / `x86_64` violations
+**FAIL**. Tooling uses the **pinned NDK** `llvm-readelf` (not system
+`readelf`).
+
+```powershell
+$env:ANDROID_NDK_HOME = "$env:LOCALAPPDATA\Android\Sdk\ndk\29.0.14206865"
+pwsh -File scripts/verify-16kb-alignment.ps1 -Aar android/build/outputs/aar/OmnixVoiceSDK-0.1.0.aar
+```
+
+```bash
+export ANDROID_NDK_HOME="${ANDROID_SDK_ROOT}/ndk/29.0.14206865"
+scripts/verify-16kb-alignment.sh android/build/outputs/aar/OmnixVoiceSDK-*.aar
+```
+
+APK zip alignment (AGP ≥ 8.5.1 / project AGP 8.9.1):
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\build-tools\35.0.0\zipalign.exe" -c -P 16 -v 4 `
+  android/build/outputs/apk/androidTest/debug/OmnixVoiceSDK-debug-androidTest.apk
+```
+
+Runtime: `Omnix16KbPageTest` asserts `Os.sysconf(_SC_PAGESIZE) == 16384`,
+loads `libomnixvoice.so`, and runs `initialize()` → `shutdown()`. On 4 KB
+devices it **skips**. A 16 KB emulator/device (`adb shell getconf PAGE_SIZE`
+→ `16384`) is a **manual release gate** when CI has no 16 KB image (also
+tracked for SDK-065). Do **not** set `android:pageSizeCompat` to mask
+failures.
+
+If `LOAD` alignment passes but `GNU_RELRO` fails on a 64-bit `.so`, stop and
+report `STATUS: BLOCKED` — do not add linker flags ad hoc (Issue #2).
+
 ### Build commands
 
 ```powershell
