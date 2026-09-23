@@ -93,6 +93,10 @@ void omnix_test_release_baresip_call(struct call *call);
 int omnix_test_inject_incoming_bevent(const char *peer_uri);
 /* Test/SDK-019: simulate CALL_EVENT_CLOSED (optional SIP text → FAILED). */
 int omnix_test_inject_call_closed(const char *call_id, const char *str);
+/* Test/SDK-020: allocate audio streams if lazy path never ran (host inject). */
+int omnix_test_ensure_call_audio(const char *call_id);
+/* Test/SDK-020: audio local SDP dir after mute (0=INACTIVE…3=SENDRECV), -1 err. */
+int omnix_test_call_audio_ldir(const char *call_id);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);

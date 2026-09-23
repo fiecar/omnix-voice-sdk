@@ -288,6 +288,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_hangup PRIVATE omnix_voice)
+
+  add_executable(test_mute
+    "${OMNIX_REPO_ROOT}/tests/native/test_mute.c"
+  )
+  target_include_directories(test_mute PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_mute PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary

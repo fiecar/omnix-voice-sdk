@@ -141,7 +141,7 @@ jobs:
 
   # SDK-010/011/012/013/014/015/016: host unit tests (Linux canonical)
   native-host-tests:
-    name: Native host tests (lifecycle + log redaction + account + registration + events + call model + outgoing)
+    name: Native host tests (lifecycle + log redaction + account + registration + events + call model + outgoing + mute)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -156,7 +156,7 @@ jobs:
       - name: Configure + build host native + tests
         run: |
           cmake -S cpp -B build/host -G Ninja -DSTATIC=ON -DOMNIX_BUILD_TESTS=ON
-          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events test_call_model test_outgoing_call test_incoming_call test_answer_reject test_hangup -j"$(nproc)"
+          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events test_call_model test_outgoing_call test_incoming_call test_answer_reject test_hangup test_mute -j"$(nproc)"
 
       - name: Run log redaction unit test
         run: |
@@ -197,6 +197,10 @@ jobs:
       - name: Run hangup unit test
         run: |
           ./build/host/test_hangup
+
+      - name: Run mute unit test
+        run: |
+          ./build/host/test_mute
 
       - name: API leakage check
         run: |
