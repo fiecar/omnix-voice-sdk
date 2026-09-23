@@ -77,7 +77,9 @@ typedef struct {
     const char *sip_password;
     const char *display_name;
     const char *stun_server;
+    /* MUST default to true (Issue #1 §16 / SDK-025). Never ship false silently. */
     bool verify_tls_cert;
+    /* MUST default to true (Issue #1 §16). */
     bool enable_srtp;
     const char *audio_module;
     const char *codecs;

@@ -108,6 +108,14 @@ void omnix_test_reset_last_dtmf(void);
 int omnix_test_force_call_connected(const char *call_id);
 /* Test/SDK-023: Baresip call_is_onhold (1/0); -1 if call missing. */
 int omnix_test_call_is_onhold(const char *call_id);
+/* Test/SDK-025: sip.verify_server (1/0); -1 if not initialized. */
+int omnix_test_sip_verify_server(void);
+/* Test/SDK-025: TLS-only transports (1/0); -1 if not initialized. */
+int omnix_test_sip_tls_only(void);
+/* Test/SDK-025: linked OpenSSL_version(OPENSSL_VERSION) string. */
+const char *omnix_test_openssl_version(void);
+/* Test/SDK-025: 1 if init logged verify_tls_cert=false WARNING. */
+int omnix_test_warned_verify_tls_off(void);
 
 /* SDK-017: handle BEVENT_CALL_INCOMING under re lock (mqueue for app cb). */
 void omnix_call_handle_incoming(struct call *call);

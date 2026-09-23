@@ -193,6 +193,10 @@ target_link_libraries(omnix_voice
     baresip
     re
 )
+# SDK-025: OpenSSL headers for version string (linked via re/baresip).
+if(OPENSSL_INCLUDE_DIR)
+  target_include_directories(omnix_voice PRIVATE "${OPENSSL_INCLUDE_DIR}")
+endif()
 if(ANDROID)
   target_link_libraries(omnix_voice PUBLIC log)
 endif()
@@ -324,6 +328,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_hold PRIVATE omnix_voice)
+
+  add_executable(test_tls
+    "${OMNIX_REPO_ROOT}/tests/native/test_tls.c"
+  )
+  target_include_directories(test_tls PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_tls PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary
