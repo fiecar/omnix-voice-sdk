@@ -1,6 +1,6 @@
 /**
  * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017)
- * + answer/reject (SDK-018) + hangup / CLOSED (SDK-019).
+ * + answer/reject (SDK-018) + hangup / CLOSED (SDK-019) + mute (SDK-020).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
@@ -13,6 +13,10 @@
 
 #include <stdio.h>
 #include <string.h>
+
+/* baresip internal (core.h): streams are lazy until SDP offer/accept.
+ * Host inject never reaches that path — allocate for mute AC checks. */
+int call_streams_alloc(struct call *call);
 
 #define OMNIX_MAX_CALLS 8
 
@@ -268,6 +272,75 @@ void omnix_test_release_baresip_call(struct call *call)
 	call_hangup(call, 0, NULL);
 	mem_deref(call);
 	re_thread_leave();
+}
+
+/**
+ * Test helper (SDK-020): ensure audio stream exists (call_streams_alloc) so
+ * call_set_audio_ldir / call_get_mdir can be asserted on host inject calls.
+ * Returns 0 on success, else errno-style code.
+ */
+int omnix_test_ensure_call_audio(const char *call_id)
+{
+	omnix_call_entry_t *entry;
+	struct call *call;
+	int err = 0;
+
+	if (!call_id || call_id[0] == '\0') {
+		return EINVAL;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return ENOENT;
+	}
+	call = entry->baresip_call;
+	if (!call_audio(call)) {
+		err = call_streams_alloc(call);
+		if (!err) {
+			call_set_mdir(call, SDP_SENDRECV, SDP_SENDRECV);
+		}
+	}
+	re_thread_leave();
+	return err;
+}
+
+/**
+ * Test helper (SDK-020): read local audio direction via call_get_mdir
+ * (same stream_ldir path that call_set_audio_ldir updates).
+ * Returns enum sdp_dir (0…3) or -1 if call/audio stream missing.
+ */
+int omnix_test_call_audio_ldir(const char *call_id)
+{
+	omnix_call_entry_t *entry;
+	struct call *call;
+	enum sdp_dir adir = SDP_INACTIVE;
+	enum sdp_dir vdir = SDP_INACTIVE;
+	struct audio *au;
+	struct stream *strm;
+
+	if (!call_id || call_id[0] == '\0') {
+		return -1;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return -1;
+	}
+	call = entry->baresip_call;
+	au = call_audio(call);
+	strm = audio_strm(au);
+	if (!au || !strm) {
+		re_thread_leave();
+		return -1;
+	}
+	call_get_mdir(call, &adir, &vdir);
+	(void)vdir;
+	re_thread_leave();
+	return (int)adir;
 }
 
 /**
@@ -717,9 +790,38 @@ omnix_error_t omnix_call_resume(const char *call_id)
 
 omnix_error_t omnix_call_set_mute(const char *call_id, bool mute)
 {
-	(void)call_id;
-	(void)mute;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	struct call *call;
+	enum sdp_dir dir;
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	call = entry->baresip_call;
+	/*
+	 * Issue #2 SDK-020: mute = stop local TX via call_set_audio_ldir.
+	 * SDP_RECVONLY = local sends nothing (recv-only); SDP_SENDRECV restores TX.
+	 * Host unit test (test_mute) asserts sdp_media_ldir after mute/unmute:
+	 * muted → SDP_RECVONLY, unmuted → SDP_SENDRECV. Real-device "no audio
+	 * sent" is a manual/SDK-065 gate when a live SIP peer is available.
+	 */
+	dir = mute ? SDP_RECVONLY : SDP_SENDRECV;
+	call_set_audio_ldir(call, dir);
+	entry->info.is_muted = mute;
+	re_thread_leave();
+	return OMNIX_ERR_OK;
 }
 
 omnix_error_t omnix_call_send_dtmf(const char *call_id, char digit)
