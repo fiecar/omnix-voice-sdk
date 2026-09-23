@@ -46,6 +46,21 @@ Recommended host order:
 3. `OmnixVoice.initialize(applicationContext, config)`.
 4. `OmnixVoice.register()` when ready.
 
+## Audio focus and routing (SDK-034)
+
+The SDK owns call-time audio session setup via internal `OmnixAudioRouter`:
+
+| Moment | Behavior |
+|--------|----------|
+| Call start (first active call state) | Request `AUDIOFOCUS_GAIN_TRANSIENT` with `AudioAttributes.USAGE_VOICE_COMMUNICATION`; set `AudioManager.MODE_IN_COMMUNICATION` |
+| `OmnixVoice.setSpeakerEnabled(true/false)` | `AudioManager.setSpeakerphoneOn` (also stored in the C facade from SDK-021); fires `onAudioRouteChanged` |
+| Call end (no remaining active calls) | Abandon audio focus; clear speakerphone; restore prior audio mode |
+| `shutdown()` | Ends any active call audio session |
+
+Host apps should **not** fight the SDK for `MODE_IN_COMMUNICATION` during a call.
+Bluetooth / wired-headset auto-routing beyond speaker vs earpiece is MVP-limited
+(`OmnixAudioRoute.WIRED_HEADSET` / `BLUETOOTH` exist in the enum for later work).
+
 ## Credentials
 
 The SDK may **receive** SIP credentials at runtime. It does **not** persist

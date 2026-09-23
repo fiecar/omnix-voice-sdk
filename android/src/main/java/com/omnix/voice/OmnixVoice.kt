@@ -2,6 +2,7 @@ package com.omnix.voice
 
 import android.content.Context
 import android.util.Log
+import com.omnix.voice.internal.OmnixAudioRouter
 import com.omnix.voice.internal.OmnixEventDispatcher
 import com.omnix.voice.internal.OmnixNative
 import com.omnix.voice.internal.OmnixNativeCallback
@@ -14,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap
  * No `external` / JNI types. Baresip/re types must never appear here.
  * Password is passed to native once and is never persisted by this SDK.
  * [initialize] requires [android.Manifest.permission.RECORD_AUDIO] (SDK-033).
+ * Audio focus / MODE_IN_COMMUNICATION / speaker routing = SDK-034.
  */
 object OmnixVoice {
     private const val TAG = "OmnixVoice"
@@ -30,13 +32,15 @@ object OmnixVoice {
     private var initialized: Boolean = false
 
     @Volatile
+    private var audioRouter: OmnixAudioRouter? = null
+
+    @Volatile
     private var audioRoute: OmnixAudioRoute = OmnixAudioRoute.UNKNOWN
 
     @Volatile
     var registrationState: OmnixRegistrationState =
         OmnixRegistrationState.UNINITIALIZED
         private set
-
     private val nativeCallback =
         object : OmnixNativeCallback {
             override fun onRegistrationStateChanged(
@@ -74,6 +78,7 @@ object OmnixVoice {
                         isOnHold = isOnHold,
                     )
                 calls[id] = info
+                syncCallAudioSession(mapped)
                 if (mapped == OmnixCallState.INCOMING) {
                     dispatcher.dispatch { it.onIncomingCall(info) }
                 }
@@ -124,7 +129,9 @@ object OmnixVoice {
                 OmnixPermissions.requireRecordAudioGranted(false)
             }
 
-            appContext = context.applicationContext
+            val app = context.applicationContext
+            appContext = app
+            audioRouter = OmnixAudioRouter.from(app)
             OmnixNative.nativeSetCallback(nativeCallback)
 
             val codecsCsv =
@@ -158,6 +165,8 @@ object OmnixVoice {
             if (!initialized) {
                 return
             }
+            audioRouter?.endCallAudio()
+            audioRouter = null
             OmnixNative.nativeSetCallback(null)
             OmnixNative.nativeShutdown()
             calls.clear()
@@ -258,6 +267,8 @@ object OmnixVoice {
         synchronized(lock) {
             ensureInitialized()
             throwIfError(OmnixNative.nativeSetSpeaker(enabled))
+            // SDK-034: platform applies AudioManager.setSpeakerphoneOn.
+            audioRouter?.setSpeakerEnabled(enabled)
             audioRoute =
                 if (enabled) OmnixAudioRoute.SPEAKER else OmnixAudioRoute.EARPIECE
             val route = audioRoute
@@ -330,4 +341,36 @@ object OmnixVoice {
         val mapped = OmnixErrorCode.fromNative(code)
         throw OmnixVoiceException(mapped, mapped.name)
     }
+
+    /**
+     * SDK-034: start audio focus / MODE_IN_COMMUNICATION when any call is
+     * active; release when every call is terminal (ENDED/FAILED/IDLE).
+     */
+    private fun syncCallAudioSession(latest: OmnixCallState) {
+        val router = audioRouter ?: return
+        if (isActiveCallState(latest) || hasActiveCall()) {
+            router.startCallAudio()
+        } else {
+            router.endCallAudio()
+        }
+    }
+
+    private fun hasActiveCall(): Boolean =
+        calls.values.any { isActiveCallState(it.state) }
+
+    private fun isActiveCallState(state: OmnixCallState): Boolean =
+        when (state) {
+            OmnixCallState.OUTGOING,
+            OmnixCallState.INCOMING,
+            OmnixCallState.RINGING,
+            OmnixCallState.EARLY_MEDIA,
+            OmnixCallState.CONNECTED,
+            OmnixCallState.HELD,
+            OmnixCallState.ENDING,
+            -> true
+            OmnixCallState.IDLE,
+            OmnixCallState.ENDED,
+            OmnixCallState.FAILED,
+            -> false
+        }
 }
