@@ -1,6 +1,6 @@
 /**
  * Omnix Voice — call registry (SDK-015) + outgoing (SDK-016) + incoming (SDK-017)
- * + answer/reject (SDK-018).
+ * + answer/reject (SDK-018) + hangup / CLOSED (SDK-019).
  *
  * Tracks active calls by call_id. struct call * stays internal only.
  * Slot helpers are intended for use under the re thread lock (SDK-016+).
@@ -11,11 +11,15 @@
 #include <re.h>
 #include <baresip.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #define OMNIX_MAX_CALLS 8
 
 static omnix_call_entry_t g_calls[OMNIX_MAX_CALLS];
+
+static void omnix_call_finalize_closed(omnix_call_entry_t *entry,
+				       struct call *call, const char *str);
 
 static void omnix_ncpy(char *dst, size_t dst_sz, const char *src)
 {
@@ -267,6 +271,32 @@ void omnix_test_release_baresip_call(struct call *call)
 }
 
 /**
+ * Test helper (SDK-019): simulate CALL_EVENT_CLOSED with optional SIP text
+ * (e.g. "486 Busy Here") so FAILED vs ENDED can be asserted without live SIP.
+ */
+int omnix_test_inject_call_closed(const char *call_id, const char *str)
+{
+	omnix_call_entry_t *entry;
+	struct call *call;
+
+	if (!call_id || call_id[0] == '\0') {
+		return EINVAL;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return ENOENT;
+	}
+	call = entry->baresip_call;
+	bevent_call_emit(BEVENT_CALL_CLOSED, call, "%s", str ? str : "");
+	omnix_call_finalize_closed(entry, call, str);
+	re_thread_leave();
+	return 0;
+}
+
+/**
  * Test helper (SDK-017): allocate a call with id/peer, then emit
  * BEVENT_CALL_INCOMING so omnix_bevent_handler runs the incoming path
  * without a live SIP INVITE (host CI has no TLS peer).
@@ -292,6 +322,52 @@ int omnix_test_inject_incoming_bevent(const char *peer_uri)
 			       peer ? peer : "");
 	re_thread_leave();
 	return err;
+}
+
+/**
+ * Issue #1 §21: ENDED = CLOSED; FAILED = CLOSED + non-zero SIP code.
+ * Prefer call_scode(); fall back to a leading 3xx–6xx in the CLOSED text.
+ */
+static int omnix_closed_sip_code(const struct call *call, const char *str)
+{
+	uint16_t sc;
+	unsigned code = 0;
+
+	sc = call_scode(call);
+	if (sc != 0) {
+		return (int)sc;
+	}
+	if (str && str[0] != '\0' && sscanf(str, "%u", &code) == 1 &&
+	    code >= 300 && code <= 699) {
+		return (int)code;
+	}
+	return 0;
+}
+
+/**
+ * Finalize a closed call under the re lock: notify ENDED/FAILED, free slot,
+ * mem_deref. Safe if entry is already cleared (still deref the call).
+ */
+static void omnix_call_finalize_closed(omnix_call_entry_t *entry,
+				       struct call *call, const char *str)
+{
+	omnix_call_state_t st;
+	int sip_code;
+
+	if (!call) {
+		return;
+	}
+
+	sip_code = omnix_closed_sip_code(call, str);
+	st = (sip_code != 0) ? OMNIX_CALL_FAILED : OMNIX_CALL_ENDED;
+
+	if (entry && entry->baresip_call == call) {
+		omnix_call_info_from_baresip(&entry->info, call);
+		entry->info.state = st;
+		(void)omnix_events_notify_call_state(st, &entry->info);
+		omnix_free_call_slot(entry);
+	}
+	mem_deref(call);
 }
 
 /**
@@ -354,13 +430,10 @@ static void omnix_call_event_handler(struct call *call, enum call_event ev,
 		break;
 
 	case CALL_EVENT_CLOSED:
-		/* Preserve UA lifetime semantics; slot free refined in SDK-019. */
+		/* SDK-019: ENDED/FAILED + free slot + on_call_event. */
 		bevent_call_emit(BEVENT_CALL_CLOSED, call, "%s",
 				 str ? str : "");
-		if (entry && entry->baresip_call == call) {
-			omnix_free_call_slot(entry);
-		}
-		mem_deref(call);
+		omnix_call_finalize_closed(entry, call, str);
 		break;
 
 	case CALL_EVENT_TRANSFER:
@@ -575,15 +648,14 @@ omnix_error_t omnix_call_reject(const char *call_id)
 	call = entry->baresip_call;
 	/*
 	 * Issue #2 SDK-018: SIP 486 Busy Here. True INCOMING + sess may fire
-	 * CALL_EVENT_CLOSED (slot free + mem_deref) before hangup returns.
-	 * Host-injected / no-sess calls skip CLOSED — finish lifetime here
-	 * (same outcome as ua_hangup after call_hangup).
+	 * CALL_EVENT_CLOSED (ENDED/FAILED + slot free + mem_deref) before
+	 * hangup returns. Host-injected / no-sess calls skip CLOSED — finish
+	 * lifetime here with the reject SIP code (FAILED).
 	 */
 	call_hangup(call, 486, "Busy Here");
 	entry = omnix_find_call_by_id(idbuf);
 	if (entry && entry->baresip_call == call) {
-		omnix_free_call_slot(entry);
-		mem_deref(call);
+		omnix_call_finalize_closed(entry, call, "486 Busy Here");
 	}
 	re_thread_leave();
 	return OMNIX_ERR_OK;
@@ -591,8 +663,44 @@ omnix_error_t omnix_call_reject(const char *call_id)
 
 omnix_error_t omnix_call_hangup(const char *call_id)
 {
-	(void)call_id;
-	return OMNIX_ERR_NOT_SUPPORTED;
+	struct omnix_state *st = omnix_state_get();
+	omnix_call_entry_t *entry;
+	struct call *call;
+	char idbuf[sizeof(((omnix_call_info_t *)0)->call_id)];
+
+	if (!st || !st->initialized) {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+	if (!call_id || call_id[0] == '\0') {
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	re_thread_enter();
+	entry = omnix_find_call_by_id(call_id);
+	if (!entry || !entry->baresip_call) {
+		re_thread_leave();
+		return OMNIX_ERR_INVALID_STATE;
+	}
+
+	omnix_ncpy(idbuf, sizeof(idbuf), call_id);
+	call = entry->baresip_call;
+
+	/* Issue #1 §21: hangup → ENDING → CLOSED → ENDED/FAILED. */
+	entry->info.state = OMNIX_CALL_ENDING;
+	(void)omnix_events_notify_call_state(OMNIX_CALL_ENDING, &entry->info);
+
+	/*
+	 * Issue #2 SDK-019: call_hangup(call, 0, NULL) under re lock.
+	 * Live sess may fire CALL_EVENT_CLOSED before return; host inject
+	 * often skips CLOSED — finalize as ENDED (scode 0) if still tracked.
+	 */
+	call_hangup(call, 0, NULL);
+	entry = omnix_find_call_by_id(idbuf);
+	if (entry && entry->baresip_call == call) {
+		omnix_call_finalize_closed(entry, call, NULL);
+	}
+	re_thread_leave();
+	return OMNIX_ERR_OK;
 }
 
 omnix_error_t omnix_call_hold(const char *call_id)

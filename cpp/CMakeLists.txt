@@ -279,6 +279,15 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_answer_reject PRIVATE omnix_voice)
+
+  add_executable(test_hangup
+    "${OMNIX_REPO_ROOT}/tests/native/test_hangup.c"
+  )
+  target_include_directories(test_hangup PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_hangup PRIVATE omnix_voice)
 endif()
 
 # Helpful build summary
