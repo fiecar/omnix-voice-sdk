@@ -218,6 +218,11 @@ jobs:
           # SDK-037 — shared ABI verify script (identical semantics to verify-abi.ps1)
           chmod +x scripts/verify-abi.sh
           scripts/verify-abi.sh "$AAR"
+          # SDK-038 — every .so PT_LOAD / GNU_RELRO 16 KB check (pinned NDK llvm-readelf)
+          export ANDROID_NDK_HOME="${ANDROID_SDK_ROOT}/ndk/29.0.14206865"
+          test -x "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          chmod +x scripts/verify-16kb-alignment.sh
+          scripts/verify-16kb-alignment.sh "$AAR"
           unzip -l "$AAR" | grep -q 'classes\.jar' \
             || { echo "FAIL: missing classes.jar"; exit 1; }
           unzip -l "$AAR" | grep -q 'AndroidManifest\.xml' \

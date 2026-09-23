@@ -64,6 +64,91 @@ scripts/verify-abi.sh android/build/outputs/aar/OmnixVoiceSDK-*.aar
 Both scripts require `jni/{arm64-v8a,armeabi-v7a,x86_64}/libomnixvoice.so` and
 exit non-zero if any ABI is missing. CI calls the `.sh` after `assembleRelease`.
 
+### 16 KB page-size verification (SDK-038)
+
+Every `.so` inside the release AAR (any path) is inventoried against
+`android/shipped-native-libs.txt`. For each library, **every** `PT_LOAD`
+`Align` must be ≥ `0x4000` and a power of two; `GNU_RELRO` end
+(`VirtAddr + MemSiz`) must be a multiple of 16384. `armeabi-v7a` violations
+are `WARN (32-bit, informational)` only; `arm64-v8a` / `x86_64` violations
+**FAIL**. Tooling uses the **pinned NDK** `llvm-readelf` (not system
+`readelf`).
+
+```powershell
+$env:ANDROID_NDK_HOME = "$env:LOCALAPPDATA\Android\Sdk\ndk\29.0.14206865"
+pwsh -File scripts/verify-16kb-alignment.ps1 -Aar android/build/outputs/aar/OmnixVoiceSDK-0.1.0.aar
+```
+
+```bash
+export ANDROID_NDK_HOME="${ANDROID_SDK_ROOT}/ndk/29.0.14206865"
+scripts/verify-16kb-alignment.sh android/build/outputs/aar/OmnixVoiceSDK-*.aar
+```
+
+APK zip alignment (AGP ≥ 8.5.1 / project AGP 8.9.1):
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\build-tools\35.0.0\zipalign.exe" -c -P 16 -v 4 `
+  android/build/outputs/apk/androidTest/debug/OmnixVoiceSDK-debug-androidTest.apk
+```
+
+Runtime: `Omnix16KbPageTest` asserts `Os.sysconf(_SC_PAGESIZE) == 16384`,
+loads `libomnixvoice.so`, and runs `initialize()` → `shutdown()`. On 4 KB
+devices it **skips**. Do **not** set `android:pageSizeCompat` to mask
+failures.
+
+**Runtime gate evidence (PASS, 2026-09-24 local Windows):**
+
+| Item | Result |
+|------|--------|
+| Image | `system-images;android-35;google_apis_ps16k;x86_64` (sdkmanager) |
+| AVD | `Omnix_16KB_API35` (Pixel 6, tag `page_size_16kb`) |
+| `adb shell getconf PAGE_SIZE` | **16384** |
+| `zipalign -c -P 16 -v 4` (androidTest APK) | PASS |
+| `verify-abi.ps1` / `verify-16kb-alignment.ps1` (release AAR) | PASS |
+| `Omnix16KbPageTest.loadInitializeShutdownOn16KbPages` | PASS (1/1, 0 failed, 0 skipped; 1.443s) |
+
+CI may still lack a 16 KB image; SDK-065 can re-check on release runners.
+
+### 16 KB defensive build invariant (SDK-038 lead-approved enforcement)
+
+**Background:** NDK r28+ sets `PT_LOAD` alignment to `0x4000` via the ELF linker
+script. However, the `android.toolchain.cmake` (non-legacy, used by AGP 8.x) does
+**not** inject `-Wl,-z,max-page-size=16384` by default. LLD 21 (NDK r29) uses
+4096-byte page size for `GNU_RELRO` end padding unless told otherwise — so the
+RELRO end is aligned to 4 KB, not 16 KB, causing the SDK-038 validator to FAIL.
+
+**Lead decision (2026-09-24):** After confirming NDK r29 + LLD 21 are the correct
+pinned toolchain and that no 4 KB override exists, the lead explicitly authorised
+adding these flags to the `omnixvoice` final shared-library target in
+`android/CMakeLists.txt`:
+
+```
+-Wl,-z,max-page-size=16384
+-Wl,-z,common-page-size=16384
+```
+
+**Why both flags are required:**
+- `-z max-page-size=16384` — instructs LLD to round up the `GNU_RELRO` end to a
+  16 KB boundary. Required for `(VirtAddr + MemSiz) % 0x4000 == 0`.
+- `-z common-page-size=16384` — aligns common-section (BSS/data) allocations to
+  16 KB, preventing underaligned load addresses on 16 KB devices.
+
+**Affected target:** `omnixvoice` (produces `libomnixvoice.so`) in
+`android/CMakeLists.txt` only. Scoped to `if(ANDROID)`.
+
+**This is not a workaround.** It is an explicit defensive build invariant required
+for Omnix Android artifacts to be 16 KB page-compatible as mandated by
+[Android guidance](https://developer.android.com/guide/practices/page-sizes).
+The validator (`scripts/verify-16kb-alignment.ps1 / .sh`) and its strict
+semantics remain unchanged.
+
+**Verification:**
+```powershell
+# After clean assembleRelease:
+& llvm-readelf.exe -lW android/build/intermediates/cxx/RelWithDebInfo/.../arm64-v8a/libomnixvoice.so | Select-String RELRO
+# VirtAddr + MemSiz must be a multiple of 0x4000
+```
+
 ### Build commands
 
 ```powershell
@@ -93,4 +178,15 @@ pwsh -File scripts/fetch-openssl-android.ps1   # once, checksum-verified
 
 ## React Native
 
-Gate **H-1** (SDK-046): lead pins RN + matching AGP/Gradle in this file before that task starts.
+**Gate H-1 — FROZEN (lead decision 2026-09-24):**
+
+| Component | Pinned version | Notes |
+|-----------|----------------|-------|
+| React Native | **0.87.1** | Primary / CI-tested MVP baseline. New Architecture required. |
+| Node.js | **22.x** | Matching RN 0.87.1 toolchain. |
+
+- Do **not** use React Native 0.88 RC/nightly or floating `latest`.
+- Do **not** upgrade RN during MVP without explicit lead approval.
+- Public package: `@omnix/voice-sdk`. Demo must consume the package (not Baresip directly).
+- Host-app AGP/Gradle for the RN demo follow the RN 0.87.1 template; do not force those versions into the standalone Android SDK module.
+- Compatibility with 0.86.x is acceptable only if tested without special-case hacks; **do not claim 0.86 support unless actually tested**. 0.86 must not delay MVP.

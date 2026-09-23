@@ -17,8 +17,9 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 add_compile_options(-fvisibility=hidden)
 
-# Do not pass -Wl,-z,max-page-size=4096 or any page-size override (Issue #2).
-# NDK ≥ r28 defaults to 16 KB-compatible ELF alignment.
+# SDK-038: Do NOT pass -Wl,-z,max-page-size=4096 (that reverts to 4 KB and breaks 16 KB compat).
+# NDK ≥ r28 sets PT_LOAD alignment to 0x4000 via its ELF linker script, but GNU_RELRO end
+# alignment still requires explicit -Wl,-z,max-page-size=16384 (see target_link_options below).
 
 get_filename_component(OMNIX_ANDROID_DIR "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
 get_filename_component(OMNIX_REPO_ROOT "${OMNIX_ANDROID_DIR}/.." ABSOLUTE)
@@ -56,6 +57,25 @@ if(ANDROID)
   if(TARGET OpenSSL::SSL)
     target_link_libraries(omnixvoice PRIVATE OpenSSL::SSL OpenSSL::Crypto)
   endif()
+
+  # SDK-038: Explicit 16 KB page-size enforcement (lead-approved defensive build invariant).
+  #
+  # NDK r28+ sets PT_LOAD alignment to 0x4000 via the ELF linker script.  However,
+  # LLD's GNU_RELRO end is rounded up using max-page-size, which defaults to 4096 in
+  # the android.toolchain.cmake (non-legacy) path — so without explicit flags the
+  # RELRO segment end is NOT 16 KB aligned and the SDK-038 validator fails.
+  #
+  # -Wl,-z,max-page-size=16384  — pads the GNU_RELRO end to a 16 KB boundary.
+  # -Wl,-z,common-page-size=16384 — aligns common-section allocations to 16 KB.
+  #
+  # These flags are Android-only, target-specific, and do NOT affect host or iOS builds.
+  # See: https://developer.android.com/guide/practices/page-sizes
+  # See: docs/toolchain.md §16 KB defensive build invariant
+  target_link_options(omnixvoice
+    PRIVATE
+      "-Wl,-z,max-page-size=16384"
+      "-Wl,-z,common-page-size=16384"
+  )
 else()
   message(FATAL_ERROR "android/CMakeLists.txt is for ANDROID NDK builds only")
 endif()
