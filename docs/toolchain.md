@@ -93,10 +93,21 @@ APK zip alignment (AGP ≥ 8.5.1 / project AGP 8.9.1):
 
 Runtime: `Omnix16KbPageTest` asserts `Os.sysconf(_SC_PAGESIZE) == 16384`,
 loads `libomnixvoice.so`, and runs `initialize()` → `shutdown()`. On 4 KB
-devices it **skips**. A 16 KB emulator/device (`adb shell getconf PAGE_SIZE`
-→ `16384`) is a **manual release gate** when CI has no 16 KB image (also
-tracked for SDK-065). Do **not** set `android:pageSizeCompat` to mask
+devices it **skips**. Do **not** set `android:pageSizeCompat` to mask
 failures.
+
+**Runtime gate evidence (PASS, 2026-09-24 local Windows):**
+
+| Item | Result |
+|------|--------|
+| Image | `system-images;android-35;google_apis_ps16k;x86_64` (sdkmanager) |
+| AVD | `Omnix_16KB_API35` (Pixel 6, tag `page_size_16kb`) |
+| `adb shell getconf PAGE_SIZE` | **16384** |
+| `zipalign -c -P 16 -v 4` (androidTest APK) | PASS |
+| `verify-abi.ps1` / `verify-16kb-alignment.ps1` (release AAR) | PASS |
+| `Omnix16KbPageTest.loadInitializeShutdownOn16KbPages` | PASS (1/1, 0 failed, 0 skipped; 1.443s) |
+
+CI may still lack a 16 KB image; SDK-065 can re-check on release runners.
 
 ### 16 KB defensive build invariant (SDK-038 lead-approved enforcement)
 
@@ -167,4 +178,15 @@ pwsh -File scripts/fetch-openssl-android.ps1   # once, checksum-verified
 
 ## React Native
 
-Gate **H-1** (SDK-046): lead pins RN + matching AGP/Gradle in this file before that task starts.
+**Gate H-1 — FROZEN (lead decision 2026-09-24):**
+
+| Component | Pinned version | Notes |
+|-----------|----------------|-------|
+| React Native | **0.87.1** | Primary / CI-tested MVP baseline. New Architecture required. |
+| Node.js | **22.x** | Matching RN 0.87.1 toolchain. |
+
+- Do **not** use React Native 0.88 RC/nightly or floating `latest`.
+- Do **not** upgrade RN during MVP without explicit lead approval.
+- Public package: `@omnix/voice-sdk`. Demo must consume the package (not Baresip directly).
+- Host-app AGP/Gradle for the RN demo follow the RN 0.87.1 template; do not force those versions into the standalone Android SDK module.
+- Compatibility with 0.86.x is acceptable only if tested without special-case hacks; **do not claim 0.86 support unless actually tested**. 0.86 must not delay MVP.
