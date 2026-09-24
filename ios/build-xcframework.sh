@@ -181,6 +181,10 @@ EOF
     -lz \
     "${swift_files[@]}"
 
+  # swiftc -emit-library on Darwin often appends .dylib; framework binary must be extensionless.
+  if [[ -f "${bin}.dylib" && ! -f "$bin" ]]; then
+    mv "${bin}.dylib" "$bin"
+  fi
   [[ -f "$bin" ]] || fail "framework binary not produced for $sdk"
 
   # Assemble .framework bundle
