@@ -90,6 +90,12 @@ jobs:
           test -f build/ios-bridge/OmnixVoiceBridge.o
           test -f build/ios-bridge/libOmnixVoiceBridge.a
 
+      - name: Typecheck / build Swift facade (SDK-041)
+        run: |
+          chmod +x ios/build-ios-swift.sh
+          ios/build-ios-swift.sh
+          test -f build/ios-swift/libOmnixVoice.dylib
+
       - name: Upload iOS native artifacts (static libs)
         uses: actions/upload-artifact@v4
         with:
@@ -102,6 +108,7 @@ jobs:
             build/ios-sim/libre.a
             build/ios-sim/libomnix_voice.a
             build/ios-bridge/libOmnixVoiceBridge.a
+            build/ios-swift/libOmnixVoice.dylib
             build/openssl-ios/SHA256SUMS
             build/openssl-ios/ARTIFACT_META.json
           if-no-files-found: error

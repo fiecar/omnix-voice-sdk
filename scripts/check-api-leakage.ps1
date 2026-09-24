@@ -149,6 +149,48 @@ if (Test-Path -LiteralPath $objcDir) {
     }
 }
 
+# SDK-041+: public Swift API
+$swiftDir = Join-Path $RepoRoot 'ios/Sources/OmnixVoice'
+$swiftForbiddenAll = @(
+    '(?i)\bbaresip\b',
+    '(?i)\bstruct\s+ua\b',
+    '(?i)\bstruct\s+call\b',
+    '(?i)\bstruct\s+account\b',
+    '\bmem_alloc\b',
+    '\bmem_deref\b'
+)
+$swiftForbiddenPublicOnly = @(
+    'OmnixVoiceBridge',
+    'OmnixBridge',
+    '\bNSError\b',
+    '\bNSObject\b'
+)
+
+if (Test-Path -LiteralPath $swiftDir) {
+    $swFiles = Get-ChildItem -LiteralPath $swiftDir -Filter '*.swift' -File
+    foreach ($sw in $swFiles) {
+        $lineNo = 0
+        foreach ($line in (Get-Content -LiteralPath $sw.FullName)) {
+            $lineNo++
+            if ($line -match 'MUST NOT|must never|Baresip/re|no ObjC|No ObjC|no Baresip|wrapping ObjC|ObjC bridge') {
+                continue
+            }
+            foreach ($pat in $swiftForbiddenAll) {
+                if ($line -match $pat) {
+                    $failures += "$($sw.FullName):${lineNo}: matched /$pat/ -> $line"
+                }
+            }
+            if ($sw.Name -ne 'OmnixVoice.swift') {
+                foreach ($pat in $swiftForbiddenPublicOnly) {
+                    if ($line -match $pat) {
+                        $failures += "$($sw.FullName):${lineNo}: matched /$pat/ -> $line"
+                    }
+                }
+            }
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "check-api-leakage: FAIL"
     $failures | ForEach-Object { Write-Host "  $_" }

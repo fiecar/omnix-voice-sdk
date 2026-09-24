@@ -100,4 +100,43 @@ if [[ -d "$OBJC_DIR" ]]; then
   done < <(find "$OBJC_DIR" -maxdepth 1 -type f -name '*.h' -print0)
 fi
 
+# SDK-041+: public Swift API (ios/Sources/OmnixVoice/*.swift)
+SWIFT_DIR="$ROOT/ios/Sources/OmnixVoice"
+if [[ -d "$SWIFT_DIR" ]]; then
+  SWIFT_PATTERNS=(
+    'baresip'
+    'struct[[:space:]]+ua'
+    'struct[[:space:]]+call'
+    'struct[[:space:]]+account'
+    'mem_alloc'
+    'mem_deref'
+    'OmnixVoiceBridge'
+    'OmnixBridge'
+    'NSError'
+    'NSObject'
+  )
+  while IFS= read -r -d '' sw; do
+    # Bridging header is not a public Swift API surface.
+    base="$(basename "$sw")"
+    [[ "$base" == *.swift ]] || continue
+    for pat in "${SWIFT_PATTERNS[@]}"; do
+      # Allow internal adapter file mentions only in OmnixVoice.swift implementation
+      # for bridge types — public API files must stay clean. Scan all .swift but
+      # skip documentary "no Baresip" comments; bridge type names are forbidden
+      # in every public Swift file except the single internal adapter section
+      # which we allow only inside OmnixVoice.swift via explicit exception below.
+      if [[ "$pat" == 'OmnixVoiceBridge' || "$pat" == 'OmnixBridge' || "$pat" == 'NSError' || "$pat" == 'NSObject' ]]; then
+        if [[ "$base" == "OmnixVoice.swift" ]]; then
+          continue
+        fi
+      fi
+      if grep -Eni "$pat" "$sw" | grep -Ev 'MUST NOT|must never|Baresip/re|no ObjC|No ObjC|no Baresip|wrapping ObjC|ObjC bridge' >/dev/null; then
+        echo "check-api-leakage: matched /$pat/ in $sw" >&2
+        grep -Eni "$pat" "$sw" >&2 || true
+        fail "API leakage in $sw"
+      fi
+    done
+  done < <(find "$SWIFT_DIR" -maxdepth 1 -type f -name '*.swift' -print0)
+fi
+
 echo "check-api-leakage: PASS"
