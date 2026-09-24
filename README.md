@@ -25,6 +25,13 @@ permissions (`RECORD_AUDIO` runtime request before `initialize()`), call audio
 focus / speaker routing (SDK-034), release AAR packaging (`OmnixVoiceSDK-x.y.z.aar`,
 SDK-036), credentials, and MVP incoming-call limits.
 
+## iOS integration
+
+**[MACOS REQUIRED]** to build. Package with `ios/build-xcframework.sh` →
+`dist/OmnixVoiceSDK.xcframework` (module `OmnixVoiceSDK`, iOS 15.0+, device
+`arm64` + simulator `arm64`). See [docs/toolchain.md](docs/toolchain.md).
+Ship `THIRD_PARTY_NOTICES.md` + `LICENSES/` with the binary zip.
+
 ## License
 
 Omnix Voice SDK source (outside `third_party/`) — see repository license when published.

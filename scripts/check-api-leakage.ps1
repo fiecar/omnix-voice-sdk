@@ -191,6 +191,21 @@ if (Test-Path -LiteralPath $swiftDir) {
     }
 }
 
+# SDK-043+: packaging umbrella headers
+$packDir = Join-Path $RepoRoot 'ios/packaging'
+if (Test-Path -LiteralPath $packDir) {
+    $packHeaders = Get-ChildItem -LiteralPath $packDir -Filter '*.h' -File -ErrorAction SilentlyContinue
+    foreach ($h in $packHeaders) {
+        $lineNo = 0
+        foreach ($line in (Get-Content -LiteralPath $h.FullName)) {
+            $lineNo++
+            if ($line -match '(?i)baresip\.h|#\s*include\s*[<"]re\.h|struct\s+ua\b|third_party/') {
+                $failures += "$($h.FullName):${lineNo}: packaging header leakage -> $line"
+            }
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "check-api-leakage: FAIL"
     $failures | ForEach-Object { Write-Host "  $_" }

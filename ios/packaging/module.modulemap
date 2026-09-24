@@ -1,0 +1,5 @@
+module OmnixVoiceSDK {
+  umbrella header "OmnixVoiceSDK.h"
+  export *
+  module * { export * }
+}

@@ -77,3 +77,8 @@ coverage/
 
 # Logs
 *.log
+
+# Local agent scratch (issue body dumps) — never commit
+.issue2-*.md
+.sdk043-section.md
+.issue2-body-updated.md
