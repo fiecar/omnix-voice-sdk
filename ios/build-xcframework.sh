@@ -185,7 +185,6 @@ EOF
     -framework Foundation \
     -framework AVFoundation \
     -framework AudioToolbox \
-    -framework AudioUnit \
     -framework CoreAudio \
     -framework Security \
     -framework SystemConfiguration \
