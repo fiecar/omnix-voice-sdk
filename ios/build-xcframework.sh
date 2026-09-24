@@ -120,8 +120,8 @@ build_static_slice() {
     -o "$slice_work/obj/OmnixVoiceBridge.o"
 
   # Issue #2 name: libOmnixVoice.a — merge native + OpenSSL + ObjC.
-  # Prefer sequential ar extraction to avoid Apple libtool duplicate-member drops:
-  # extract each archive into a unique subdir then re-archive.
+  # Apple `ar -x` silently keeps only one member per basename; extract each
+  # member via `ar -p` into a uniquely named object file.
   local merge_dir="$slice_work/merge"
   rm -rf "$merge_dir"
   mkdir -p "$merge_dir"
@@ -137,22 +137,26 @@ build_static_slice() {
     idx=$((idx + 1))
     local sub="$merge_dir/$idx"
     mkdir -p "$sub"
-    # shellcheck disable=SC2164
-    (
-      cd "$sub"
-      ar -x "$archive"
-      # Prefix object names to avoid collisions across archives
-      for o in *.o; do
-        [[ -f "$o" ]] || continue
-        mv "$o" "${idx}_$o"
-      done
-    )
+    local member safe n=0
+    while IFS= read -r member; do
+      [[ -n "$member" ]] || continue
+      n=$((n + 1))
+      safe="$(printf '%s' "$member" | tr '/ ' '__')"
+      ar -p "$archive" "$member" > "$sub/${idx}_${n}_${safe}"
+    done < <(ar -t "$archive")
+    [[ "$n" -gt 0 ]] || fail "no members extracted from $archive"
+    echo "build-xcframework: extracted $n objects from $(basename "$archive")"
   done
   cp -f "$slice_work/obj/OmnixVoiceBridge.o" "$merge_dir/OmnixVoiceBridge.o"
   rm -f "$out_lib"
   # shellcheck disable=SC2046
-  ar -rcs "$out_lib" $(find "$merge_dir" -name '*.o' | sort)
+  ar -rcs "$out_lib" $(find "$merge_dir" -type f | sort)
   [[ -f "$out_lib" ]] || fail "failed to produce $out_lib"
+  # Sanity: Omnix + a known re symbol should be present
+  if command -v nm >/dev/null; then
+    nm "$out_lib" 2>/dev/null | grep -q 'omnix_init\|T _omnix_init' \
+      || echo "build-xcframework: WARN — omnix_init not found via nm"
+  fi
   echo "build-xcframework: wrote $out_lib"
 }
 

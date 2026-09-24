@@ -37,7 +37,7 @@ xcrun -sdk iphonesimulator swiftc \
   -emit-executable \
   -o "$OUT/OmnixConsumerSmoke" \
   "$SRC/main.swift" \
-  "$SIM_LIB" \
+  -Xlinker -force_load -Xlinker "$SIM_LIB" \
   -lresolv -lc++ -lz \
   -framework Foundation \
   -framework AVFoundation \
