@@ -61,7 +61,8 @@ xcrun -sdk iphonesimulator swiftc \
   -Xlinker -undefined -Xlinker dynamic_lookup \
   "${SWIFT_FILES[@]}" \
   "$ROOT/build/ios-bridge/OmnixVoiceBridge.o" \
-  -framework Foundation
+  -framework Foundation \
+  -framework AVFoundation
 
 echo "build-ios-swift: SUCCESS"
 ls -la "$OUT/libOmnixVoice.dylib"
