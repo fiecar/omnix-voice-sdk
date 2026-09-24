@@ -77,3 +77,8 @@ coverage/
 
 # Logs
 *.log
+
+# RN package (SDK-046)
+react-native/node_modules/
+react-native/android/maven/**/*.aar
+

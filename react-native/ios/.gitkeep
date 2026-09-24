@@ -1,0 +1,2 @@
+# Placeholder for RN iOS native bridge sources (SDK-049).
+# Podspec may vendor OmnixVoiceSDK.xcframework from SDK-043 when available.
