@@ -19,7 +19,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-react-native/android/maven/
+react-native/android/maven/**/*.aar
 
 # Environment and secrets
 .env
