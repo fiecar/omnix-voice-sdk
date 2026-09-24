@@ -125,8 +125,9 @@ build_slice() {
     "$BRIDGE_SRC/OmnixVoiceBridge.m" \
     -o "$slice_work/obj/OmnixVoiceBridge.o"
 
-  # Issue #2: combined libOmnixVoice.a (native stack + ObjC bridge object).
-  # OpenSSL is folded in so clients do not link libssl/libcrypto separately.
+  # Issue #2 combined archive name (for inspection / alternate -library packaging).
+  # Do NOT force_load the merged archive alone — Apple libtool drops duplicate
+  # member names across libre/libbaresip. Link each archive with -force_load.
   merge_native_static "$slice_work/libOmnixVoice.a" \
     "$native_dir/libomnix_voice.a" \
     "$native_dir/libbaresip.a" \
@@ -145,22 +146,18 @@ EOF
   [[ -f "${swift_files[0]:-}" ]] || fail "no Swift sources under $SWIFT_SRC"
 
   local mod_dir="$slice_work/Modules/OmnixVoiceSDK.swiftmodule"
-  local swiftmodule_file iface_file
+  local swiftmodule_file
   if [[ "$sdk" == "iphonesimulator" ]]; then
     swiftmodule_file="$mod_dir/arm64-apple-ios${MIN_IOS}-simulator.swiftmodule"
-    iface_file="$mod_dir/arm64-apple-ios${MIN_IOS}-simulator.swiftinterface"
   else
     swiftmodule_file="$mod_dir/arm64-apple-ios${MIN_IOS}.swiftmodule"
-    iface_file="$mod_dir/arm64-apple-ios${MIN_IOS}.swiftinterface"
   fi
 
   local bin="$slice_work/OmnixVoiceSDK"
   echo "build-xcframework: link OmnixVoiceSDK framework binary ($sdk)"
   # Mixed Swift+ObjC via bridging header cannot use -enable-library-evolution /
-  # -emit-module-interface ("using bridging headers with module interfaces is
-  # unsupported"). BUILD_LIBRARY_FOR_DISTRIBUTION is therefore NOT enabled for
-  # this MVP packaging; we ship .swiftmodule only. Splitting ObjC into a clang
-  # submodule would be required before enabling library evolution.
+  # -emit-module-interface. Ships .swiftmodule only (see docs/toolchain.md).
+  # System libs: resolv (re DNS), AudioUnit/AudioToolbox (baresip audiounit).
   xcrun -sdk "$sdk" swiftc \
     -target "$triple" \
     -sdk "$sdk_path" \
@@ -176,17 +173,25 @@ EOF
     -emit-library \
     -o "$bin" \
     -Xlinker -install_name -Xlinker "@rpath/OmnixVoiceSDK.framework/OmnixVoiceSDK" \
-    -Xlinker -force_load -Xlinker "$slice_work/libOmnixVoice.a" \
+    -Xlinker -force_load -Xlinker "$native_dir/libomnix_voice.a" \
+    -Xlinker -force_load -Xlinker "$native_dir/libbaresip.a" \
+    -Xlinker -force_load -Xlinker "$native_dir/libre.a" \
+    -Xlinker -force_load -Xlinker "$openssl_root/lib/libssl.a" \
+    -Xlinker -force_load -Xlinker "$openssl_root/lib/libcrypto.a" \
+    "$slice_work/obj/OmnixVoiceBridge.o" \
+    -lresolv \
+    -lc++ \
+    -lz \
     -framework Foundation \
     -framework AVFoundation \
     -framework AudioToolbox \
+    -framework AudioUnit \
+    -framework CoreAudio \
     -framework Security \
     -framework SystemConfiguration \
     -framework CFNetwork \
     -framework CoreMedia \
     -framework UIKit \
-    -lc++ \
-    -lz \
     "${swift_files[@]}"
 
   # swiftc -emit-library on Darwin often appends .dylib; framework binary must be extensionless.
