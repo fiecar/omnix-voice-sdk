@@ -162,7 +162,7 @@ jobs:
         run: |
           set -euo pipefail
           matches="$(find dist/OmnixVoiceSDK.xcframework -type f \
-            \( -name '*.plist' -o -name '*.h' -o -name 'module.modulemap' -o -name '*.swiftinterface' \) \
+            \( -name '*.plist' -o -name '*.h' -o -name 'module.modulemap' \) \
             -exec grep -lE 'sipPassword|OMNIX_TEST_SIP|BEGIN PRIVATE KEY|fieca|OneDrive|infomedia\.co\.id|C:\\Users' {} + 2>/dev/null || true)"
           if [[ -n "${matches}" ]]; then
             echo "FAIL: secret or local path in distributable metadata:" >&2

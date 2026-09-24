@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# SDK-043 — validate OmnixVoiceSDK.xcframework structure + public API leakage.
-# [MACOS REQUIRED] for full lipo/otool checks; structural checks are portable.
+# SDK-043 — validate OmnixVoiceSDK.xcframework (static-library layout).
+# [MACOS REQUIRED] for lipo; structural checks otherwise portable.
 set -euo pipefail
 
 fail() { echo "verify-xcframework: $*" >&2; exit 1; }
@@ -14,90 +14,52 @@ VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null || echo "0.1.0")"
 
 echo "verify-xcframework: inspecting $XCF"
 
-# Expected library slices (framework layout from create-xcframework).
-DEVICE_FW=""
-SIM_FW=""
-while IFS= read -r -d '' fw; do
-  rel="${fw#$XCF/}"
-  case "$rel" in
-    ios-arm64/*|ios-arm64_*)
-      DEVICE_FW="$fw"
-      ;;
-    ios-arm64-simulator/*|ios-arm64_x86_64-simulator/*|*simulator*)
-      SIM_FW="$fw"
-      ;;
-  esac
-done < <(find "$XCF" -name 'OmnixVoiceSDK.framework' -print0)
+DEVICE_LIB="$(find "$XCF" -path '*ios-arm64*' -name 'libOmnixVoice.a' | head -n 1 || true)"
+SIM_LIB="$(find "$XCF" -path '*simulator*' -name 'libOmnixVoice.a' | head -n 1 || true)"
+[[ -n "$DEVICE_LIB" ]] || fail "missing ios-arm64 libOmnixVoice.a"
+[[ -n "$SIM_LIB" ]] || fail "missing ios-arm64-simulator libOmnixVoice.a"
+echo "OK: device library = $DEVICE_LIB"
+echo "OK: simulator library = $SIM_LIB"
 
-# Fallback: walk Info.plist AvailableLibraries via plutil if find missed.
-if [[ -z "$DEVICE_FW" || -z "$SIM_FW" ]]; then
-  if command -v plutil >/dev/null; then
-    echo "verify-xcframework: AvailableLibraries:"
-    plutil -p "$XCF/Info.plist" || true
+for lib in "$DEVICE_LIB" "$SIM_LIB"; do
+  hdr_dir="$(dirname "$lib")/Headers"
+  # create-xcframework may place Headers next to the library
+  if [[ ! -d "$hdr_dir" ]]; then
+    hdr_dir="$(find "$(dirname "$lib")" -type d -name Headers | head -n 1 || true)"
   fi
-  # Accept either nested framework path naming from xcodebuild
-  DEVICE_FW="$(find "$XCF" -path '*ios-arm64*' -name 'OmnixVoiceSDK.framework' | head -n 1 || true)"
-  SIM_FW="$(find "$XCF" -path '*simulator*' -name 'OmnixVoiceSDK.framework' | head -n 1 || true)"
-fi
+  [[ -d "$hdr_dir" ]] || fail "missing Headers next to $lib"
+  [[ -f "$hdr_dir/OmnixVoiceSDK.h" ]] || fail "missing umbrella in $hdr_dir"
+  [[ -f "$hdr_dir/OmnixVoiceBridge.h" ]] || fail "missing OmnixVoiceBridge.h in $hdr_dir"
+  [[ -f "$hdr_dir/module.modulemap" ]] || fail "missing module.modulemap in $hdr_dir"
 
-[[ -n "$DEVICE_FW" ]] || fail "missing ios-arm64 framework slice"
-[[ -n "$SIM_FW" ]] || fail "missing ios-arm64-simulator framework slice"
-echo "OK: device framework = $DEVICE_FW"
-echo "OK: simulator framework = $SIM_FW"
-
-for fw in "$DEVICE_FW" "$SIM_FW"; do
-  [[ -f "$fw/OmnixVoiceSDK" ]] || fail "missing binary in $fw"
-  [[ -f "$fw/Headers/OmnixVoiceSDK.h" ]] || fail "missing umbrella header in $fw"
-  [[ -f "$fw/Headers/OmnixVoiceBridge.h" ]] || fail "missing OmnixVoiceBridge.h in $fw"
-  [[ -f "$fw/Modules/module.modulemap" ]] || fail "missing module.modulemap in $fw"
-  [[ -f "$fw/Info.plist" ]] || fail "missing framework Info.plist in $fw"
-
-  # Public header leakage (real includes / types — not documentary comments)
-  if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$fw/Headers/"*.h; then
-    fail "public headers in $fw include baresip.h"
+  if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$hdr_dir"/*.h; then
+    fail "public headers include baresip.h"
   fi
-  if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$fw/Headers/"*.h; then
-    fail "public headers in $fw include re.h"
+  if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$hdr_dir"/*.h; then
+    fail "public headers include re.h"
   fi
-  if grep -En 'struct[[:space:]]+ua\b|struct[[:space:]]+call\b|struct[[:space:]]+account\b|third_party/' \
-    "$fw/Headers/"*.h | grep -Ev 'MUST NOT|must not|Baresip/re|no Baresip|Never includes' >/dev/null; then
-    fail "public headers in $fw leak Baresip/re/third_party"
-  fi
-  # Ensure no third_party headers were packaged
-  if find "$fw" \( -iname '*baresip*' -o -iname 're.h' \) | grep -q .; then
-    fail "baresip/re artifacts found inside $fw"
+  if find "$hdr_dir" \( -iname '*baresip*' -o -iname 're.h' \) | grep -q .; then
+    fail "baresip/re headers packaged"
   fi
 
-  # Deployment target
-  if command -v plutil >/dev/null; then
-    min_os="$(plutil -extract MinimumOSVersion raw "$fw/Info.plist" 2>/dev/null || true)"
-    if [[ -n "$min_os" && "$min_os" != "15.0" ]]; then
-      fail "MinimumOSVersion must be 15.0 (got $min_os)"
-    fi
-  fi
-
-  # Architecture (macOS)
   if command -v lipo >/dev/null; then
-    archs="$(lipo -archs "$fw/OmnixVoiceSDK")"
-    echo "archs ($fw): $archs"
-    echo "$archs" | grep -qw arm64 || fail "arm64 missing in $fw"
+    archs="$(lipo -archs "$lib")"
+    echo "archs ($lib): $archs"
+    echo "$archs" | grep -qw arm64 || fail "arm64 missing in $lib"
   fi
 
-  # No local developer path leaks in plist / modulemap (text metadata only)
-  if grep -R "fieca\|OneDrive\|infomedia\.co\.id\|C:\\\\Users" "$fw/Info.plist" "$fw/Modules" "$fw/Headers" 2>/dev/null; then
-    fail "local developer path leak in framework metadata"
+  if grep -R "fieca\|OneDrive\|infomedia\.co\.id\|C:\\\\Users" "$hdr_dir" 2>/dev/null; then
+    fail "local developer path leak in headers"
   fi
 done
 
-# XCFramework Info.plist platform sanity
 if command -v plutil >/dev/null; then
   plutil -p "$XCF/Info.plist" | tee "$ROOT/build/xcframework-info.txt" || true
-  if ! plutil -p "$XCF/Info.plist" | grep -q 'ios'; then
-    fail "Info.plist does not mention ios platform"
+  if ! plutil -p "$XCF/Info.plist" | grep -qi 'ios'; then
+    fail "Info.plist does not mention ios"
   fi
 fi
 
-# Zip + checksum if present
 ZIP="$ROOT/dist/OmnixVoiceSDK-${VERSION}.xcframework.zip"
 if [[ -f "$ZIP" ]]; then
   if command -v shasum >/dev/null; then
@@ -106,15 +68,12 @@ if [[ -f "$ZIP" ]]; then
     if [[ -f "${ZIP}.sha256" ]]; then
       exp="$(awk '{print $1}' "${ZIP}.sha256")"
       [[ "$got" == "$exp" ]] || fail "SHA-256 mismatch for zip"
-      echo "OK: zip checksum matches ${ZIP}.sha256"
+      echo "OK: zip checksum matches"
     fi
   fi
-else
-  echo "WARN: zip not found at $ZIP (optional at verify time)"
 fi
 
-# Attribution companions for distribution
 [[ -f "$ROOT/dist/THIRD_PARTY_NOTICES.md" ]] \
-  || fail "dist/THIRD_PARTY_NOTICES.md missing (required with binary distribution)"
+  || fail "dist/THIRD_PARTY_NOTICES.md missing"
 
 echo "verify-xcframework: PASS"

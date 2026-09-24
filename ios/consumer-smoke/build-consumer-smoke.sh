@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# SDK-043 — minimal consumer compile/link against OmnixVoiceSDK.xcframework.
+# SDK-043 — consumer compile/link against static OmnixVoiceSDK.xcframework.
 # [MACOS REQUIRED]
-# Proves a separate target can `import OmnixVoiceSDK` and link. No SIP E2E.
+# Proves a separate target can `import OmnixVoiceSDK` (ObjC module) and link.
+# No SIP E2E. Clients must also link system frameworks used by the static archive.
 set -euo pipefail
 
 fail() { echo "consumer-smoke: $*" >&2; exit 1; }
@@ -20,20 +21,33 @@ SDK_PATH="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 TARGET="arm64-apple-ios${MIN_IOS}-simulator"
 mkdir -p "$OUT"
 
-SIM_FW="$(find "$XCF" -path '*simulator*' -name 'OmnixVoiceSDK.framework' | head -n 1 || true)"
-[[ -n "$SIM_FW" ]] || fail "could not locate simulator OmnixVoiceSDK.framework inside XCFramework"
-SIM_PARENT="$(dirname "$SIM_FW")"
+SIM_LIB="$(find "$XCF" -path '*simulator*' -name 'libOmnixVoice.a' | head -n 1 || true)"
+[[ -n "$SIM_LIB" ]] || fail "simulator libOmnixVoice.a not found in XCFramework"
+SIM_SLICE="$(cd "$(dirname "$SIM_LIB")" && pwd)"
+HDR="$SIM_SLICE/Headers"
+[[ -d "$HDR" ]] || HDR="$(find "$SIM_SLICE" -type d -name Headers | head -n 1)"
+[[ -d "$HDR" ]] || fail "Headers not found for simulator slice"
 
-echo "consumer-smoke: compile main.swift (-F $SIM_PARENT)"
+echo "consumer-smoke: compile main.swift against $SIM_LIB"
 xcrun -sdk iphonesimulator swiftc \
   -target "$TARGET" \
   -sdk "$SDK_PATH" \
-  -F "$SIM_PARENT" \
-  -framework OmnixVoiceSDK \
+  -I "$HDR" \
+  -fmodule-map-file="$HDR/module.modulemap" \
   -emit-executable \
   -o "$OUT/OmnixConsumerSmoke" \
   "$SRC/main.swift" \
-  -Xlinker -rpath -Xlinker "$SIM_PARENT"
+  "$SIM_LIB" \
+  -lresolv -lc++ -lz \
+  -framework Foundation \
+  -framework AVFoundation \
+  -framework AudioToolbox \
+  -framework CoreAudio \
+  -framework Security \
+  -framework SystemConfiguration \
+  -framework CFNetwork \
+  -framework CoreMedia \
+  -framework UIKit
 
 [[ -f "$OUT/OmnixConsumerSmoke" ]] || fail "consumer executable not produced"
 echo "consumer-smoke: PASS (compile/link)"

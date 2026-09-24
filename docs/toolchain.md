@@ -212,14 +212,15 @@ ios/consumer-smoke/build-consumer-smoke.sh
 
 | Item | Value |
 |------|-------|
-| Product / module | **OmnixVoiceSDK** |
+| Product / module | **OmnixVoiceSDK** (clang module; ObjC bridge public surface) |
 | Slices | `ios-arm64` (device) + `ios-arm64-simulator` |
 | Min OS | **iOS 15.0** |
-| Public headers | `OmnixVoiceSDK.h` umbrella + `OmnixVoiceBridge.h` only |
-| Native deps | Folded into the framework binary (baresip/re/OpenSSL/omnix_voice static; not separate frameworks) |
-| Swift distribution | Mixed Swift+ObjC uses a bridging header → **cannot** enable `-enable-library-evolution` / `.swiftinterface` (Apple: unsupported). Ships `.swiftmodule` only. `BUILD_LIBRARY_FOR_DISTRIBUTION=YES` deferred until ObjC is a separate clang submodule. |
-| Bitcode | **OFF** (current Apple toolchain; do not re-enable from old tutorials) |
-| Signing | Unsigned library/framework packaging in CI (no customer identity required to *create* the XCFramework) |
+| Public headers | `OmnixVoiceSDK.h` umbrella + `OmnixVoiceBridge.h` + `module.modulemap` |
+| Native deps | Folded into `libOmnixVoice.a` (baresip/re/OpenSSL/omnix_voice + ObjC bridge) |
+| Swift facade | Remains **source** under `ios/Sources/OmnixVoice` — not inside the XCFramework binary. Xcode 15 `create-xcframework` requires `.swiftinterface` for Swift frameworks; that needs `-enable-library-evolution`, which is **unsupported with ObjC bridging headers**. Enable `BUILD_LIBRARY_FOR_DISTRIBUTION` only after ObjC is a separate clang submodule. |
+| Bitcode | **OFF** |
+| Signing | Unsigned library packaging in CI |
+| Packaging API | `xcodebuild -create-xcframework -library … -headers …` (Issue #2) |
 
 **SBOM note:** `ios-cmake` is vendored and pinned in `SOURCE_MANIFEST.json`, but `SBOM.json` does not yet list it (still baresip/re/openssl/omnix-voice-sdk only). Regenerating SBOM is tracked as a follow-up inventory task — not silently faked during SDK-043.
 

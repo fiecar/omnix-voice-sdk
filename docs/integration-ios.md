@@ -13,18 +13,19 @@ Module name: **OmnixVoiceSDK**. Deployment target: **iOS 15.0**.
 ```swift
 import OmnixVoiceSDK
 
-try OmnixVoice.shared.initialize(config: OmnixVoiceConfig(
-    sipServer: "sip.example.com",
-    sipUser: "user@example.com",
-    sipPassword: "placeholder"
-))
+let bridge = OmnixVoiceBridge.shared
+// Swift OmnixVoice facade: compile ios/Sources/OmnixVoice/*.swift in the app
+// until a future BUILD_LIBRARY_FOR_DISTRIBUTION Swift binary lands.
+_ = bridge.isInitialized
 ```
 
 ## Embed in Xcode
 
-1. Add `OmnixVoiceSDK.xcframework` to the app target (**Frameworks, Libraries, and Embedded Content** → Embed & Sign).
-2. Ensure the app’s iOS deployment target is ≥ 15.0.
-3. Microphone usage description (`NSMicrophoneUsageDescription`) is required before live audio; not exercised by the consumer smoke compile test.
+1. Add `OmnixVoiceSDK.xcframework` to the app target.
+2. Link system frameworks/libs used by the static archive: Foundation, AVFoundation, AudioToolbox, CoreAudio, Security, SystemConfiguration, CFNetwork, CoreMedia, UIKit, `resolv`, `c++`, `z`.
+3. Deployment target ≥ 15.0.
+4. Swift facade (`OmnixVoice` class) is **source** in the SDK repo (`ios/Sources/OmnixVoice`); MVP binary module exposes the ObjC bridge (`import OmnixVoiceSDK` → `OmnixVoiceBridge`).
+5. Microphone usage description (`NSMicrophoneUsageDescription`) is required before live audio.
 
 ## Limits (honest)
 

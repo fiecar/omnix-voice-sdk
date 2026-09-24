@@ -2,15 +2,16 @@
 # SDK-043 — build OmnixVoiceSDK.xcframework (device arm64 + simulator arm64).
 # [MACOS REQUIRED]
 #
-# Packages a dynamic framework per slice containing:
-#   - Native static stack (omnix_voice, baresip, re, OpenSSL) force-loaded
-#   - Objective-C bridge
-#   - Public Swift facade (module name OmnixVoiceSDK)
+# Issue #2 packaging model:
+#   xcodebuild -create-xcframework -library … -headers …
 #
-# Public headers: Omnix umbrella + OmnixVoiceBridge only (never third_party/).
-# Release-oriented (-O2 / -O); unsigned (no customer signing identity).
-# Swift binary interface: -enable-library-evolution (+ .swiftinterface)
-#   == Xcode BUILD_LIBRARY_FOR_DISTRIBUTION=YES.
+# Public module OmnixVoiceSDK exposes Omnix ObjC bridge headers only.
+# Native stack (omnix_voice, baresip, re, OpenSSL) + ObjC bridge are folded into
+# libOmnixVoice.a per slice. Swift facade remains source under ios/Sources/OmnixVoice
+# until ObjC is a clang submodule (required for BUILD_LIBRARY_FOR_DISTRIBUTION /
+# .swiftinterface — unsupported with bridging headers on Xcode 15+).
+#
+# Release-oriented (-O2); unsigned; Bitcode OFF; iOS 15.0.
 set -euo pipefail
 
 fail() { echo "build-xcframework: $*" >&2; exit 1; }
@@ -22,7 +23,6 @@ DIST="${DIST_DIR:-$ROOT/dist}"
 WORK="${WORK_DIR:-$ROOT/build/xcframework}"
 PACK="$ROOT/ios/packaging"
 BRIDGE_SRC="$ROOT/ios/Sources/OmnixVoiceBridge"
-SWIFT_SRC="$ROOT/ios/Sources/OmnixVoice"
 OPENSSL_ROOT_BASE="${OPENSSL_ROOT_BASE:-$ROOT/build/openssl-ios}"
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "must run on macOS [MACOS REQUIRED]"
@@ -30,7 +30,7 @@ OPENSSL_ROOT_BASE="${OPENSSL_ROOT_BASE:-$ROOT/build/openssl-ios}"
 [[ -f "$BRIDGE_SRC/OmnixVoiceBridge.h" ]] || fail "missing OmnixVoiceBridge.h (SDK-040)"
 [[ -f "$ROOT/ios/build-ios.sh" ]] || fail "missing ios/build-ios.sh (SDK-039)"
 
-echo "build-xcframework: VERSION=$VERSION MIN_IOS=$MIN_IOS"
+echo "build-xcframework: VERSION=$VERSION MIN_IOS=$MIN_IOS (static-library XCFramework)"
 
 chmod +x "$ROOT/scripts/verify-third-party.sh" \
   "$ROOT/scripts/build-openssl-ios.sh" \
@@ -56,7 +56,14 @@ stage_headers() {
   mkdir -p "$dest"
   cp -f "$PACK/OmnixVoiceSDK.h" "$dest/OmnixVoiceSDK.h"
   cp -f "$BRIDGE_SRC/OmnixVoiceBridge.h" "$dest/OmnixVoiceBridge.h"
-  # Fail on real includes / type decls — not documentary "MUST NOT … baresip.h" comments.
+  # Clang module map for `import OmnixVoiceSDK` / @import OmnixVoiceSDK
+  cat > "$dest/module.modulemap" <<'EOF'
+module OmnixVoiceSDK {
+  umbrella header "OmnixVoiceSDK.h"
+  export *
+  module * { export * }
+}
+EOF
   if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$dest"/*.h; then
     fail "staged public headers must not #include baresip.h"
   fi
@@ -69,24 +76,12 @@ stage_headers() {
   fi
 }
 
-merge_native_static() {
-  local out="$1"
-  shift
-  local inputs=("$@")
-  for f in "${inputs[@]}"; do
-    [[ -f "$f" ]] || fail "missing static input: $f"
-  done
-  rm -f "$out"
-  libtool -static -o "$out" "${inputs[@]}"
-  [[ -f "$out" ]] || fail "libtool failed to produce $out"
-}
-
-build_slice() {
+build_static_slice() {
   local sdk="$1"
-  local triple="$2"
-  local native_dir="$3"
-  local openssl_slice="$4"
-  local framework_out="$5"
+  local native_dir="$2"
+  local openssl_slice="$3"
+  local out_lib="$4"
+  local headers_out="$5"
 
   local sdk_path
   sdk_path="$(xcrun --sdk "$sdk" --show-sdk-path)"
@@ -101,10 +96,9 @@ build_slice() {
 
   local slice_work="$WORK/$sdk"
   rm -rf "$slice_work"
-  mkdir -p "$slice_work/obj" "$slice_work/Headers" "$slice_work/Modules/OmnixVoiceSDK.swiftmodule"
+  mkdir -p "$slice_work/obj" "$headers_out"
 
-  stage_headers "$slice_work/Headers"
-  cp -f "$PACK/module.modulemap" "$slice_work/Modules/module.modulemap"
+  stage_headers "$headers_out"
 
   local openssl_root="$OPENSSL_ROOT_BASE/$openssl_slice"
   [[ -f "$openssl_root/lib/libssl.a" ]] || fail "missing OpenSSL at $openssl_root"
@@ -125,117 +119,66 @@ build_slice() {
     "$BRIDGE_SRC/OmnixVoiceBridge.m" \
     -o "$slice_work/obj/OmnixVoiceBridge.o"
 
-  # Issue #2 combined archive name (for inspection / alternate -library packaging).
-  # Do NOT force_load the merged archive alone — Apple libtool drops duplicate
-  # member names across libre/libbaresip. Link each archive with -force_load.
-  merge_native_static "$slice_work/libOmnixVoice.a" \
+  # Issue #2 name: libOmnixVoice.a — merge native + OpenSSL + ObjC.
+  # Prefer sequential ar extraction to avoid Apple libtool duplicate-member drops:
+  # extract each archive into a unique subdir then re-archive.
+  local merge_dir="$slice_work/merge"
+  rm -rf "$merge_dir"
+  mkdir -p "$merge_dir"
+  local idx=0
+  for archive in \
     "$native_dir/libomnix_voice.a" \
     "$native_dir/libbaresip.a" \
     "$native_dir/libre.a" \
     "$openssl_root/lib/libssl.a" \
-    "$openssl_root/lib/libcrypto.a" \
-    "$slice_work/obj/OmnixVoiceBridge.o"
-
-  local bridging="$slice_work/Bridging.h"
-  cat > "$bridging" <<'EOF'
-#import "OmnixVoiceBridge.h"
-EOF
-
-  # shellcheck disable=SC2206
-  local swift_files=("$SWIFT_SRC"/*.swift)
-  [[ -f "${swift_files[0]:-}" ]] || fail "no Swift sources under $SWIFT_SRC"
-
-  local mod_dir="$slice_work/Modules/OmnixVoiceSDK.swiftmodule"
-  local swiftmodule_file
-  if [[ "$sdk" == "iphonesimulator" ]]; then
-    swiftmodule_file="$mod_dir/arm64-apple-ios${MIN_IOS}-simulator.swiftmodule"
-  else
-    swiftmodule_file="$mod_dir/arm64-apple-ios${MIN_IOS}.swiftmodule"
-  fi
-
-  local bin="$slice_work/OmnixVoiceSDK"
-  echo "build-xcframework: link OmnixVoiceSDK framework binary ($sdk)"
-  # Mixed Swift+ObjC via bridging header cannot use -enable-library-evolution /
-  # -emit-module-interface. Ships .swiftmodule only (see docs/toolchain.md).
-  # System libs: resolv (re DNS), AudioUnit/AudioToolbox (baresip audiounit).
-  xcrun -sdk "$sdk" swiftc \
-    -target "$triple" \
-    -sdk "$sdk_path" \
-    -import-objc-header "$bridging" \
-    -I "$BRIDGE_SRC" \
-    -I "$ROOT/cpp/include" \
-    -parse-as-library \
-    -O \
-    -module-name OmnixVoiceSDK \
-    -emit-module \
-    -emit-module-path "$swiftmodule_file" \
-    -emit-objc-header-path "$slice_work/Headers/OmnixVoiceSDK-Swift.h" \
-    -emit-library \
-    -o "$bin" \
-    -Xlinker -install_name -Xlinker "@rpath/OmnixVoiceSDK.framework/OmnixVoiceSDK" \
-    -Xlinker -force_load -Xlinker "$native_dir/libomnix_voice.a" \
-    -Xlinker -force_load -Xlinker "$native_dir/libbaresip.a" \
-    -Xlinker -force_load -Xlinker "$native_dir/libre.a" \
-    -Xlinker -force_load -Xlinker "$openssl_root/lib/libssl.a" \
-    -Xlinker -force_load -Xlinker "$openssl_root/lib/libcrypto.a" \
-    "$slice_work/obj/OmnixVoiceBridge.o" \
-    -lresolv \
-    -lc++ \
-    -lz \
-    -framework Foundation \
-    -framework AVFoundation \
-    -framework AudioToolbox \
-    -framework CoreAudio \
-    -framework Security \
-    -framework SystemConfiguration \
-    -framework CFNetwork \
-    -framework CoreMedia \
-    -framework UIKit \
-    "${swift_files[@]}"
-
-  # swiftc -emit-library on Darwin often appends .dylib; framework binary must be extensionless.
-  if [[ -f "${bin}.dylib" && ! -f "$bin" ]]; then
-    mv "${bin}.dylib" "$bin"
-  fi
-  [[ -f "$bin" ]] || fail "framework binary not produced for $sdk"
-
-  # Assemble .framework bundle
-  local fw="$framework_out"
-  rm -rf "$fw"
-  mkdir -p "$fw/Headers" "$fw/Modules/OmnixVoiceSDK.swiftmodule"
-  cp -f "$bin" "$fw/OmnixVoiceSDK"
-  cp -f "$slice_work/Headers/"*.h "$fw/Headers/"
-  cp -f "$PACK/module.modulemap" "$fw/Modules/module.modulemap"
-  # Place swiftmodule (no .swiftinterface — bridging-header build; see toolchain.md)
-  cp -R "$mod_dir/." "$fw/Modules/OmnixVoiceSDK.swiftmodule/"
-  sed "s/0\\.1\\.0/${VERSION}/g" "$PACK/Info.plist" > "$fw/Info.plist"
-
-  # Also keep Issue #2 static archive path for inspection / alternate packaging notes.
-  cp -f "$slice_work/libOmnixVoice.a" "$slice_work/../libOmnixVoice-${sdk}.a"
-
-  echo "build-xcframework: framework slice ready: $fw"
+    "$openssl_root/lib/libcrypto.a"
+  do
+    [[ -f "$archive" ]] || fail "missing $archive"
+    idx=$((idx + 1))
+    local sub="$merge_dir/$idx"
+    mkdir -p "$sub"
+    # shellcheck disable=SC2164
+    (
+      cd "$sub"
+      ar -x "$archive"
+      # Prefix object names to avoid collisions across archives
+      for o in *.o; do
+        [[ -f "$o" ]] || continue
+        mv "$o" "${idx}_$o"
+      done
+    )
+  done
+  cp -f "$slice_work/obj/OmnixVoiceBridge.o" "$merge_dir/OmnixVoiceBridge.o"
+  rm -f "$out_lib"
+  # shellcheck disable=SC2046
+  ar -rcs "$out_lib" $(find "$merge_dir" -name '*.o' | sort)
+  [[ -f "$out_lib" ]] || fail "failed to produce $out_lib"
+  echo "build-xcframework: wrote $out_lib"
 }
 
-DEVICE_FW="$WORK/iphoneos/OmnixVoiceSDK.framework"
-SIM_FW="$WORK/iphonesimulator/OmnixVoiceSDK.framework"
+DEVICE_LIB="$WORK/ios-arm64/libOmnixVoice.a"
+SIM_LIB="$WORK/ios-arm64-simulator/libOmnixVoice.a"
+DEVICE_HDR="$WORK/ios-arm64/Headers"
+SIM_HDR="$WORK/ios-arm64-simulator/Headers"
+mkdir -p "$(dirname "$DEVICE_LIB")" "$(dirname "$SIM_LIB")"
 
-build_slice "iphoneos" \
-  "arm64-apple-ios${MIN_IOS}" \
+build_static_slice "iphoneos" \
   "$ROOT/build/ios-device" \
   "iphoneos-arm64" \
-  "$DEVICE_FW"
+  "$DEVICE_LIB" \
+  "$DEVICE_HDR"
 
-build_slice "iphonesimulator" \
-  "arm64-apple-ios${MIN_IOS}-simulator" \
+build_static_slice "iphonesimulator" \
   "$ROOT/build/ios-sim" \
   "iphonesimulator-arm64" \
-  "$SIM_FW"
+  "$SIM_LIB" \
+  "$SIM_HDR"
 
 echo "build-xcframework: xcodebuild -create-xcframework"
 rm -rf "$DIST/OmnixVoiceSDK.xcframework"
 xcodebuild -create-xcframework \
-  -framework "$DEVICE_FW" \
-  -framework "$SIM_FW" \
+  -library "$DEVICE_LIB" -headers "$DEVICE_HDR" \
+  -library "$SIM_LIB" -headers "$SIM_HDR" \
   -output "$DIST/OmnixVoiceSDK.xcframework"
 
 [[ -d "$DIST/OmnixVoiceSDK.xcframework" ]] || fail "XCFramework not produced"

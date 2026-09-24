@@ -4,4 +4,4 @@
  * Module: OmnixVoiceSDK
  * Exposes Omnix ObjC bridge types only. Never includes Baresip/re headers.
  */
-#import <OmnixVoiceSDK/OmnixVoiceBridge.h>
+#import "OmnixVoiceBridge.h"
