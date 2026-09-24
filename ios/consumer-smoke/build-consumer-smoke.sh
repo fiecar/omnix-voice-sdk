@@ -33,7 +33,7 @@ xcrun -sdk iphonesimulator swiftc \
   -target "$TARGET" \
   -sdk "$SDK_PATH" \
   -I "$HDR" \
-  -fmodule-map-file="$HDR/module.modulemap" \
+  -Xcc -fmodule-map-file="$HDR/module.modulemap" \
   -emit-executable \
   -o "$OUT/OmnixConsumerSmoke" \
   "$SRC/main.swift" \
