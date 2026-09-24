@@ -52,13 +52,19 @@ for fw in "$DEVICE_FW" "$SIM_FW"; do
   [[ -f "$fw/Modules/module.modulemap" ]] || fail "missing module.modulemap in $fw"
   [[ -f "$fw/Info.plist" ]] || fail "missing framework Info.plist in $fw"
 
-  # Public header leakage
-  if grep -Eiq 'baresip\.h|#\s*include\s*[<"]re\.h|struct[[:space:]]+ua\b|struct[[:space:]]+call\b|struct[[:space:]]+account\b|third_party/' \
-    "$fw/Headers/"*.h; then
+  # Public header leakage (real includes / types — not documentary comments)
+  if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$fw/Headers/"*.h; then
+    fail "public headers in $fw include baresip.h"
+  fi
+  if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$fw/Headers/"*.h; then
+    fail "public headers in $fw include re.h"
+  fi
+  if grep -En 'struct[[:space:]]+ua\b|struct[[:space:]]+call\b|struct[[:space:]]+account\b|third_party/' \
+    "$fw/Headers/"*.h | grep -Ev 'MUST NOT|must not|Baresip/re|no Baresip|Never includes' >/dev/null; then
     fail "public headers in $fw leak Baresip/re/third_party"
   fi
   # Ensure no third_party headers were packaged
-  if find "$fw" -iname '*baresip*' -o -iname 're.h' | grep -q .; then
+  if find "$fw" \( -iname '*baresip*' -o -iname 're.h' \) | grep -q .; then
     fail "baresip/re artifacts found inside $fw"
   fi
 

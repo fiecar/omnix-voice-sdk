@@ -56,9 +56,16 @@ stage_headers() {
   mkdir -p "$dest"
   cp -f "$PACK/OmnixVoiceSDK.h" "$dest/OmnixVoiceSDK.h"
   cp -f "$BRIDGE_SRC/OmnixVoiceBridge.h" "$dest/OmnixVoiceBridge.h"
-  if grep -Eiq 'baresip\.h|#\s*include\s*[<"]re\.h|struct[[:space:]]+ua\b|third_party/' \
-    "$dest/OmnixVoiceSDK.h" "$dest/OmnixVoiceBridge.h"; then
-    fail "staged public headers must not reference Baresip/re/third_party"
+  # Fail on real includes / type decls — not documentary "MUST NOT … baresip.h" comments.
+  if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$dest"/*.h; then
+    fail "staged public headers must not #include baresip.h"
+  fi
+  if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$dest"/*.h; then
+    fail "staged public headers must not #include re.h"
+  fi
+  if grep -En 'struct[[:space:]]+ua\b|struct[[:space:]]+call\b|struct[[:space:]]+account\b|third_party/' \
+    "$dest"/*.h | grep -Ev 'MUST NOT|must not|Baresip/re|no Baresip|Never includes' >/dev/null; then
+    fail "staged public headers must not declare Baresip/re types or third_party paths"
   fi
 }
 
