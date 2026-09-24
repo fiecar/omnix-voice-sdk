@@ -41,6 +41,14 @@ for entry in "${TARGETS[@]}"; do
   mkdir -p "$build_dir" "$prefix"
 
   echo "build-openssl-ios: configuring $name ($target)"
+  # Device vs simulator min-version flags differ. Using -mios-version-min on the
+  # simulator target tags objects as platform ios (device) and breaks XCFramework
+  # linking with: "building for iOS-simulator, but linking in object file built for iOS".
+  if [[ "$name" == iphonesimulator* ]]; then
+    min_flag="-mios-simulator-version-min=${IOS_MIN}"
+  else
+    min_flag="-mios-version-min=${IOS_MIN}"
+  fi
   (
     cd "$build_dir"
     # Out-of-tree Configure. Invoke via perl (vendored sources may lack +x).
@@ -48,7 +56,7 @@ for entry in "${TARGETS[@]}"; do
     perl "$OPENSSL_SRC/Configure" "$target" \
       no-shared \
       no-tests \
-      -mios-version-min="${IOS_MIN}" \
+      "${min_flag}" \
       --prefix="$prefix" \
       --openssldir="$prefix/ssl"
     echo "build-openssl-ios: building $name"
