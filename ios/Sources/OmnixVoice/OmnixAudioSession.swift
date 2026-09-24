@@ -12,7 +12,7 @@ final class OmnixAudioSession {
     private let session: AVAudioSession
     private var sessionActive = false
     private var speakerEnabled = false
-    private var routeObserver: NSObjectProtocol?
+    private var routeObserver: Any?
     private let lock = NSLock()
 
     /// Fired on the main queue when the resolved output route changes.
