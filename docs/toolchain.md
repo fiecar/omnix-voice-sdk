@@ -217,7 +217,7 @@ ios/consumer-smoke/build-consumer-smoke.sh
 | Min OS | **iOS 15.0** |
 | Public headers | `OmnixVoiceSDK.h` umbrella + `OmnixVoiceBridge.h` only |
 | Native deps | Folded into the framework binary (baresip/re/OpenSSL/omnix_voice static; not separate frameworks) |
-| Swift distribution | `-enable-library-evolution` + `.swiftinterface` (**BUILD_LIBRARY_FOR_DISTRIBUTION=YES** equivalent) |
+| Swift distribution | Mixed Swift+ObjC uses a bridging header → **cannot** enable `-enable-library-evolution` / `.swiftinterface` (Apple: unsupported). Ships `.swiftmodule` only. `BUILD_LIBRARY_FOR_DISTRIBUTION=YES` deferred until ObjC is a separate clang submodule. |
 | Bitcode | **OFF** (current Apple toolchain; do not re-enable from old tutorials) |
 | Signing | Unsigned library/framework packaging in CI (no customer identity required to *create* the XCFramework) |
 

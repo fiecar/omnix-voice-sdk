@@ -155,9 +155,12 @@ EOF
   fi
 
   local bin="$slice_work/OmnixVoiceSDK"
-  echo "build-xcframework: link OmnixVoiceSDK framework binary ($sdk) [library evolution ON]"
-  # swiftc drives the link so Swift runtime search paths are correct.
-  # -enable-library-evolution + .swiftinterface == BUILD_LIBRARY_FOR_DISTRIBUTION=YES.
+  echo "build-xcframework: link OmnixVoiceSDK framework binary ($sdk)"
+  # Mixed Swift+ObjC via bridging header cannot use -enable-library-evolution /
+  # -emit-module-interface ("using bridging headers with module interfaces is
+  # unsupported"). BUILD_LIBRARY_FOR_DISTRIBUTION is therefore NOT enabled for
+  # this MVP packaging; we ship .swiftmodule only. Splitting ObjC into a clang
+  # submodule would be required before enabling library evolution.
   xcrun -sdk "$sdk" swiftc \
     -target "$triple" \
     -sdk "$sdk_path" \
@@ -167,10 +170,8 @@ EOF
     -parse-as-library \
     -O \
     -module-name OmnixVoiceSDK \
-    -enable-library-evolution \
     -emit-module \
     -emit-module-path "$swiftmodule_file" \
-    -emit-module-interface-path "$iface_file" \
     -emit-objc-header-path "$slice_work/Headers/OmnixVoiceSDK-Swift.h" \
     -emit-library \
     -o "$bin" \
@@ -201,6 +202,7 @@ EOF
   cp -f "$bin" "$fw/OmnixVoiceSDK"
   cp -f "$slice_work/Headers/"*.h "$fw/Headers/"
   cp -f "$PACK/module.modulemap" "$fw/Modules/module.modulemap"
+  # Place swiftmodule (no .swiftinterface — bridging-header build; see toolchain.md)
   cp -R "$mod_dir/." "$fw/Modules/OmnixVoiceSDK.swiftmodule/"
   sed "s/0\\.1\\.0/${VERSION}/g" "$PACK/Info.plist" > "$fw/Info.plist"
 
