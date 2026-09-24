@@ -1,4 +1,4 @@
-# iOS native build (SDK-039) — [MACOS REQUIRED]
+# iOS native build (SDK-039) + Objective-C bridge compile (SDK-040) — [MACOS REQUIRED]
 name: ios
 
 on:
@@ -78,6 +78,18 @@ jobs:
           fi
           echo "iOS native build artifacts OK"
 
+      - name: check-api-leakage (C + Kotlin + ObjC bridge)
+        run: |
+          chmod +x scripts/check-api-leakage.sh
+          scripts/check-api-leakage.sh
+
+      - name: Compile Objective-C bridge (SDK-040)
+        run: |
+          chmod +x ios/build-ios-bridge.sh
+          ios/build-ios-bridge.sh
+          test -f build/ios-bridge/OmnixVoiceBridge.o
+          test -f build/ios-bridge/libOmnixVoiceBridge.a
+
       - name: Upload iOS native artifacts (static libs)
         uses: actions/upload-artifact@v4
         with:
@@ -89,6 +101,7 @@ jobs:
             build/ios-sim/libbaresip.a
             build/ios-sim/libre.a
             build/ios-sim/libomnix_voice.a
+            build/ios-bridge/libOmnixVoiceBridge.a
             build/openssl-ios/SHA256SUMS
             build/openssl-ios/ARTIFACT_META.json
           if-no-files-found: error
