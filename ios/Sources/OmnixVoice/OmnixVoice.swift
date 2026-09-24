@@ -1,5 +1,6 @@
-// Omnix Voice — public Swift facade (Issue #1 §20A.1). SDK-041.
-// Wraps OmnixVoiceBridge. Public API exposes no ObjC / Baresip / re types.
+// Omnix Voice — public Swift facade (Issue #1 §20A.1).
+// SDK-041: wraps OmnixVoiceBridge. SDK-042: AVAudioSession via OmnixAudioSession.
+// Public API exposes no ObjC / Baresip / re types.
 // Placeholders only; never log sipPassword.
 
 import Foundation
@@ -12,10 +13,16 @@ public final class OmnixVoice {
     private let lock = NSLock()
     private var audioRoute: OmnixAudioRoute = .UNKNOWN
     private let bridgeSink: BridgeSink
+    private let audioSession: OmnixAudioSession
+    private var trackedCalls: [String: OmnixCallState] = [:]
 
     private init() {
         bridgeSink = BridgeSink()
         bridgeSink.owner = self
+        audioSession = OmnixAudioSession()
+        audioSession.onRouteChanged = { [weak self] route in
+            self?.handleExternalRouteChange(route)
+        }
         // ObjC `sharedBridge` imports as `shared` in Swift.
         OmnixVoiceBridge.shared.delegate = bridgeSink
     }
@@ -54,7 +61,9 @@ public final class OmnixVoice {
     public func shutdown() {
         lock.lock()
         defer { lock.unlock() }
+        try? audioSession.endCallAudio()
         OmnixVoiceBridge.shared.shutdown()
+        trackedCalls.removeAll()
         audioRoute = .UNKNOWN
     }
 
@@ -118,8 +127,18 @@ public final class OmnixVoice {
         defer { lock.unlock() }
         do {
             try OmnixVoiceBridge.shared.setSpeakerEnabled(enabled)
+            try audioSession.setSpeakerEnabled(enabled)
+        } catch let error as OmnixVoiceError {
+            throw error
         } catch {
-            throw mapThrown(error)
+            // AVAudioSession failures surface as MEDIA_ERROR; bridge NSError mapped.
+            if (error as NSError).domain == OmnixVoiceBridgeErrorDomain {
+                throw mapThrown(error)
+            }
+            throw OmnixVoiceError(
+                code: .MEDIA_ERROR,
+                detail: error.localizedDescription
+            )
         }
         audioRoute = enabled ? .SPEAKER : .EARPIECE
         let route = audioRoute
@@ -211,15 +230,63 @@ public final class OmnixVoice {
     }
 
     fileprivate func emitIncoming(_ call: OmnixCallInfo) {
+        rememberCall(call)
+        syncCallAudio()
         delegate?.incomingCall(call)
     }
 
     fileprivate func emitCallState(_ call: OmnixCallInfo) {
+        rememberCall(call)
+        syncCallAudio()
         delegate?.callStateChanged(call)
     }
 
     fileprivate func emitError(code: OmnixErrorCode, detail: String?) {
         delegate?.didReceiveError(code, detail: detail, callId: nil)
+    }
+
+    private func handleExternalRouteChange(_ route: OmnixAudioRoute) {
+        lock.lock()
+        audioRoute = route
+        lock.unlock()
+        delegate?.audioRouteChanged(route)
+    }
+
+    /// SDK-042: activate AVAudioSession while any call is non-terminal;
+    /// deactivate with notifyOthersOnDeactivation when all calls end.
+    private func syncCallAudio() {
+        lock.lock()
+        let active = trackedCalls.values.contains { Self.isActiveCallState($0) }
+        lock.unlock()
+
+        if active {
+            do {
+                try audioSession.startCallAudio()
+            } catch {
+                emitError(code: .MEDIA_ERROR, detail: error.localizedDescription)
+            }
+        } else {
+            do {
+                try audioSession.endCallAudio()
+            } catch {
+                emitError(code: .MEDIA_ERROR, detail: error.localizedDescription)
+            }
+        }
+    }
+
+    fileprivate func rememberCall(_ call: OmnixCallInfo) {
+        lock.lock()
+        trackedCalls[call.callId] = call.state
+        lock.unlock()
+    }
+
+    private static func isActiveCallState(_ state: OmnixCallState) -> Bool {
+        switch state {
+        case .OUTGOING, .INCOMING, .RINGING, .EARLY_MEDIA, .CONNECTED, .HELD, .ENDING:
+            return true
+        case .IDLE, .ENDED, .FAILED:
+            return false
+        }
     }
 }
 
