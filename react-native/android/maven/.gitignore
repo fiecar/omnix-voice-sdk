@@ -1,0 +1,2 @@
+# Keep VCS clean of large binaries; npm pack uses ../.npmignore instead.
+*.aar

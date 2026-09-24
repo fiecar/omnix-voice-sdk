@@ -208,3 +208,15 @@ CI: `.github/workflows/ios.yml` on `macos-14`.
 - Public package: `@omnix/voice-sdk`. Demo must consume the package (not Baresip directly).
 - Host-app AGP/Gradle for the RN demo follow the RN 0.87.1 template; do not force those versions into the standalone Android SDK module.
 - Compatibility with 0.86.x is acceptable only if tested without special-case hacks; **do not claim 0.86 support unless actually tested**. 0.86 must not delay MVP.
+
+### RN package pack (SDK-046)
+
+```powershell
+pwsh -File scripts/pack-rn.ps1
+# -> dist/omnix-voice-sdk-0.1.0.tgz
+# Installs OmnixVoiceSDK-0.1.0.aar into react-native/android/maven/...
+```
+
+```bash
+scripts/pack-rn.sh
+```

@@ -1,0 +1,53 @@
+{
+  "name": "@omnix/voice-sdk",
+  "version": "0.1.0",
+  "description": "Omnix Voice SDK for React Native (New Architecture TurboModule)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "src",
+    "android",
+    "ios",
+    "omnix-voice-sdk.podspec",
+    "THIRD_PARTY_NOTICES.md",
+    "!android/maven/**/.gitkeep",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__"
+  ],
+  "scripts": {
+    "typescript": "tsc --noEmit"
+  },
+  "codegenConfig": {
+    "name": "OmnixVoiceSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.omnix.voice.rn"
+    }
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": ">=0.87.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "19.2.3",
+    "react-native": "0.87.1",
+    "typescript": "^5.7.3"
+  },
+  "keywords": [
+    "react-native",
+    "voip",
+    "sip",
+    "omnix"
+  ],
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/fiecar/omnix-voice-sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fiecar/omnix-voice-sdk.git",
+    "directory": "react-native"
+  }
+}

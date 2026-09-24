@@ -1,0 +1,46 @@
+// Omnix Voice React Native Android library (SDK-046 bootstrap).
+// Consumes the Omnix AAR from the bundled local Maven repo (no files('*.aar')).
+
+buildscript {
+  ext {
+    // Host app / RN template owns AGP; this module is applied as a library.
+  }
+}
+
+apply plugin: "com.android.library"
+
+def safeExtGet(prop, fallback) {
+  rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+android {
+  namespace "com.omnix.voice.rn"
+  compileSdkVersion safeExtGet("compileSdkVersion", 36)
+
+  defaultConfig {
+    minSdkVersion safeExtGet("minSdkVersion", 26)
+    targetSdkVersion safeExtGet("targetSdkVersion", 36)
+    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", "true"
+  }
+
+  sourceSets {
+    main {
+      java.srcDirs += ["src/main/java"]
+    }
+  }
+}
+
+repositories {
+  maven {
+    // Bundled OmnixVoiceSDK AAR (populated by scripts/pack-rn.*)
+    url = uri("${projectDir}/maven")
+  }
+  google()
+  mavenCentral()
+}
+
+dependencies {
+  implementation "com.facebook.react:react-android"
+  // Exact coordinates match android/ group + version (0.1.0).
+  implementation "com.omnix.voice:omnix-voice-sdk:0.1.0"
+}

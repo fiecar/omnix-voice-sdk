@@ -19,7 +19,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-react-native/android/maven/
+react-native/android/maven/**/*.aar
 
 # Environment and secrets
 .env
@@ -77,3 +77,8 @@ coverage/
 
 # Logs
 *.log
+
+# RN package (SDK-046)
+react-native/node_modules/
+react-native/android/maven/**/*.aar
+

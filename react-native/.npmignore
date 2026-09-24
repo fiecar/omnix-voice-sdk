@@ -1,0 +1,10 @@
+# Prefer this over .gitignore for npm pack so Maven AAR is included.
+node_modules/
+*.log
+*.tgz
+.DS_Store
+**/__tests__/
+**/__fixtures__/
+**/__mocks__/
+*.packbak
+android/maven/.gitignore.packbak
