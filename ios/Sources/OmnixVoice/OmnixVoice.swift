@@ -18,8 +18,8 @@ public final class OmnixVoice {
 
     private init() {
         bridgeSink = BridgeSink()
-        bridgeSink.owner = self
         audioSession = OmnixAudioSession()
+        bridgeSink.owner = self
         audioSession.onRouteChanged = { [weak self] route in
             self?.handleExternalRouteChange(route)
         }
