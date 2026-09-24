@@ -16,13 +16,14 @@ public final class OmnixVoice {
     private init() {
         bridgeSink = BridgeSink()
         bridgeSink.owner = self
-        OmnixVoiceBridge.sharedBridge.delegate = bridgeSink
+        // ObjC `sharedBridge` imports as `shared` in Swift.
+        OmnixVoiceBridge.shared.delegate = bridgeSink
     }
 
     public var registrationState: OmnixRegistrationState {
         lock.lock()
         defer { lock.unlock() }
-        let raw = Int(OmnixVoiceBridge.sharedBridge.registrationState.rawValue)
+        let raw = Int(OmnixVoiceBridge.shared.registrationState.rawValue)
         return OmnixRegistrationState.fromBridge(raw)
     }
 
@@ -43,48 +44,44 @@ public final class OmnixVoice {
             bridgeConfig.codecs = config.codecs.map(\.wireName).joined(separator: ",")
         }
 
-        var error: NSError?
-        let ok = OmnixVoiceBridge.sharedBridge.initialize(with: bridgeConfig, error: &error)
-        if !ok {
-            throw mapBridgeError(error)
+        do {
+            try OmnixVoiceBridge.shared.initialize(with: bridgeConfig)
+        } catch {
+            throw mapThrown(error)
         }
     }
 
     public func shutdown() {
         lock.lock()
         defer { lock.unlock() }
-        OmnixVoiceBridge.sharedBridge.shutdown()
+        OmnixVoiceBridge.shared.shutdown()
         audioRoute = .UNKNOWN
     }
 
     public func register() throws {
         lock.lock()
         defer { lock.unlock() }
-        var error: NSError?
-        let ok = OmnixVoiceBridge.sharedBridge.registerAndReturnError(&error)
-        if !ok {
-            throw mapBridgeError(error)
+        do {
+            try OmnixVoiceBridge.shared.register()
+        } catch {
+            throw mapThrown(error)
         }
     }
 
     public func unregister() {
         lock.lock()
         defer { lock.unlock() }
-        OmnixVoiceBridge.sharedBridge.unregister()
+        OmnixVoiceBridge.shared.unregister()
     }
 
     public func makeCall(destination: String) throws -> String {
         lock.lock()
         defer { lock.unlock() }
         var callId: NSString?
-        var error: NSError?
-        let ok = OmnixVoiceBridge.sharedBridge.makeCall(
-            destination,
-            callId: &callId,
-            error: &error
-        )
-        if !ok {
-            throw mapBridgeError(error)
+        do {
+            try OmnixVoiceBridge.shared.makeCall(destination, callId: &callId)
+        } catch {
+            throw mapThrown(error)
         }
         guard let id = callId as String?, !id.isEmpty else {
             throw OmnixVoiceError(code: .CALL_FAILED, detail: "makeCall failed")
@@ -93,48 +90,36 @@ public final class OmnixVoice {
     }
 
     public func answerCall(callId: String) throws {
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.answerCall(cid, error: err)
-        }
+        try invokeCall(callId) { try $0.answerCall($1) }
     }
 
     public func rejectCall(callId: String) throws {
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.rejectCall(cid, error: err)
-        }
+        try invokeCall(callId) { try $0.rejectCall($1) }
     }
 
     public func hangupCall(callId: String) throws {
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.hangupCall(cid, error: err)
-        }
+        try invokeCall(callId) { try $0.hangupCall($1) }
     }
 
     public func holdCall(callId: String) throws {
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.holdCall(cid, error: err)
-        }
+        try invokeCall(callId) { try $0.holdCall($1) }
     }
 
     public func resumeCall(callId: String) throws {
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.resumeCall(cid, error: err)
-        }
+        try invokeCall(callId) { try $0.resumeCall($1) }
     }
 
     public func setMuted(callId: String, muted: Bool) throws {
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.setMuted(muted, callId: cid, error: err)
-        }
+        try invokeCall(callId) { try $0.setMuted(muted, callId: $1) }
     }
 
     public func setSpeakerEnabled(_ enabled: Bool) throws {
         lock.lock()
         defer { lock.unlock() }
-        var error: NSError?
-        let ok = OmnixVoiceBridge.sharedBridge.setSpeakerEnabled(enabled, error: &error)
-        if !ok {
-            throw mapBridgeError(error)
+        do {
+            try OmnixVoiceBridge.shared.setSpeakerEnabled(enabled)
+        } catch {
+            throw mapThrown(error)
         }
         audioRoute = enabled ? .SPEAKER : .EARPIECE
         let route = audioRoute
@@ -152,9 +137,7 @@ public final class OmnixVoice {
             )
         }
         let value = unichar(scalar.value)
-        try invokeCall(callId) { bridge, cid, err in
-            bridge.sendDTMF(value, callId: cid, error: err)
-        }
+        try invokeCall(callId) { try $0.sendDTMF(value, callId: $1) }
     }
 
     /// Blind transfer stub until SDK-024. Always throws `NOT_SUPPORTED`.
@@ -174,7 +157,7 @@ public final class OmnixVoice {
     public func callInfo(callId: String) -> OmnixCallInfo? {
         lock.lock()
         defer { lock.unlock() }
-        guard let info = OmnixVoiceBridge.sharedBridge.callInfo(forCallId: callId) else {
+        guard let info = OmnixVoiceBridge.shared.callInfo(forCallId: callId) else {
             return nil
         }
         return Self.mapCallInfo(info)
@@ -184,7 +167,7 @@ public final class OmnixVoice {
 
     private func invokeCall(
         _ callId: String,
-        _ body: (OmnixVoiceBridge, String, NSErrorPointer) -> Bool
+        _ body: (OmnixVoiceBridge, String) throws -> Void
     ) throws {
         lock.lock()
         defer { lock.unlock() }
@@ -194,16 +177,17 @@ public final class OmnixVoice {
                 detail: "callId is required"
             )
         }
-        var error: NSError?
-        let ok = body(OmnixVoiceBridge.sharedBridge, callId, &error)
-        if !ok {
-            throw mapBridgeError(error)
+        do {
+            try body(OmnixVoiceBridge.shared, callId)
+        } catch {
+            throw mapThrown(error)
         }
     }
 
-    private func mapBridgeError(_ error: NSError?) -> OmnixVoiceError {
-        let code = OmnixErrorCode.fromNative(error?.code ?? 17)
-        return OmnixVoiceError(code: code, detail: error?.localizedDescription)
+    private func mapThrown(_ error: Error) -> OmnixVoiceError {
+        let ns = error as NSError
+        let code = OmnixErrorCode.fromNative(ns.code)
+        return OmnixVoiceError(code: code, detail: ns.localizedDescription)
     }
 
     fileprivate static func mapCallInfo(_ info: OmnixVoiceBridgeCallInfo) -> OmnixCallInfo {
