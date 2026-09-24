@@ -17,10 +17,17 @@ MIN_IOS="${DEPLOYMENT_TARGET:-15.0}"
 [[ -f "$SRC/OmnixVoiceBridge.m" ]] || fail "missing OmnixVoiceBridge.m"
 [[ -f "$ROOT/cpp/include/omnix_voice/omnix_voice.h" ]] || fail "missing C facade headers"
 
-# Public header must not include Baresip/re (belt-and-suspenders vs check-api-leakage).
-if grep -Eiq 'baresip\.h|\bre\.h\b|struct[[:space:]]+ua\b|struct[[:space:]]+call\b' \
-  "$SRC/OmnixVoiceBridge.h"; then
-  fail "OmnixVoiceBridge.h must not reference Baresip/re types"
+# Public header must not #include Baresip/re (belt-and-suspenders vs check-api-leakage).
+# Do not match documentary comments that mention the forbidden names.
+if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$SRC/OmnixVoiceBridge.h"; then
+  fail "OmnixVoiceBridge.h must not #include baresip.h"
+fi
+if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$SRC/OmnixVoiceBridge.h"; then
+  fail "OmnixVoiceBridge.h must not #include re.h"
+fi
+if grep -En 'struct[[:space:]]+ua\b|struct[[:space:]]+call\b|struct[[:space:]]+account\b' \
+  "$SRC/OmnixVoiceBridge.h" | grep -Ev 'MUST NOT|must not|Baresip/re|no Baresip' >/dev/null; then
+  fail "OmnixVoiceBridge.h must not declare Baresip/re types"
 fi
 
 SDK_PATH="$(xcrun --sdk iphonesimulator --show-sdk-path)"
