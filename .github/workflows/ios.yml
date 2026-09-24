@@ -1,4 +1,4 @@
-# iOS native build (SDK-039) + Objective-C bridge compile (SDK-040) — [MACOS REQUIRED]
+# iOS native + XCFramework (SDK-039…043) — [MACOS REQUIRED]
 name: ios
 
 on:
@@ -111,4 +111,74 @@ jobs:
             build/ios-swift/libOmnixVoice.dylib
             build/openssl-ios/SHA256SUMS
             build/openssl-ios/ARTIFACT_META.json
+          if-no-files-found: error
+
+  # SDK-043 — OmnixVoiceSDK.xcframework (reuses native build steps inside the script)
+  ios-xcframework:
+    name: iOS XCFramework (SDK-043)
+    runs-on: macos-14
+    timeout-minutes: 150
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Verify ios-cmake pin
+        run: |
+          test -f third_party/ios-cmake/ios.toolchain.cmake
+          python3 - <<'PY'
+          import json
+          m=json.load(open("third_party/SOURCE_MANIFEST.json"))
+          c=next(x for x in m["components"] if x["component"]=="ios-cmake")
+          assert c["commit"]=="cfaac240732eadc1a42d1869f606db2b96a8b09d"
+          print("ios-cmake pin OK", c["version"])
+          PY
+
+      - name: Build OmnixVoiceSDK.xcframework
+        run: |
+          chmod +x ios/build-xcframework.sh
+          ios/build-xcframework.sh
+          test -d dist/OmnixVoiceSDK.xcframework
+          test -f dist/OmnixVoiceSDK-*.xcframework.zip
+          test -f dist/OmnixVoiceSDK-*.xcframework.zip.sha256
+          test -f dist/THIRD_PARTY_NOTICES.md
+
+      - name: Verify XCFramework structure + API leakage
+        run: |
+          chmod +x scripts/verify-xcframework.sh
+          scripts/verify-xcframework.sh dist/OmnixVoiceSDK.xcframework
+
+      - name: Consumer compile/link smoke (import OmnixVoiceSDK)
+        run: |
+          chmod +x ios/consumer-smoke/build-consumer-smoke.sh
+          ios/consumer-smoke/build-consumer-smoke.sh dist/OmnixVoiceSDK.xcframework
+          test -f build/ios-consumer-smoke/OmnixConsumerSmoke
+
+      - name: Security scan (no secrets / local paths in package metadata)
+        run: |
+          set -euo pipefail
+          matches="$(find dist/OmnixVoiceSDK.xcframework -type f \
+            \( -name '*.plist' -o -name '*.h' -o -name 'module.modulemap' -o -name '*.swiftinterface' \) \
+            -exec grep -lE 'sipPassword|OMNIX_TEST_SIP|BEGIN PRIVATE KEY|fieca|OneDrive|infomedia\.co\.id|C:\\Users' {} + 2>/dev/null || true)"
+          if [[ -n "${matches}" ]]; then
+            echo "FAIL: secret or local path in distributable metadata:" >&2
+            echo "${matches}" >&2
+            exit 1
+          fi
+          echo "PASS: no secrets/local paths in XCFramework text metadata"
+
+      - name: Upload XCFramework artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmnixVoiceSDK-xcframework
+          path: |
+            dist/OmnixVoiceSDK.xcframework
+            dist/OmnixVoiceSDK-*.xcframework.zip
+            dist/OmnixVoiceSDK-*.xcframework.zip.sha256
+            dist/THIRD_PARTY_NOTICES.md
+            dist/LICENSES/
           if-no-files-found: error

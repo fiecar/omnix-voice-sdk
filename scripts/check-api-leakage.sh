@@ -139,4 +139,14 @@ if [[ -d "$SWIFT_DIR" ]]; then
   done < <(find "$SWIFT_DIR" -maxdepth 1 -type f -name '*.swift' -print0)
 fi
 
+# SDK-043+: packaging umbrella / staged public headers (never third_party)
+PACK_DIR="$ROOT/ios/packaging"
+if [[ -d "$PACK_DIR" ]]; then
+  while IFS= read -r -d '' h; do
+    if grep -Eiq 'baresip\.h|#\s*include\s*[<"]re\.h|struct[[:space:]]+ua\b|third_party/' "$h"; then
+      fail "API leakage in packaging header $h"
+    fi
+  done < <(find "$PACK_DIR" -maxdepth 1 -type f -name '*.h' -print0)
+fi
+
 echo "check-api-leakage: PASS"

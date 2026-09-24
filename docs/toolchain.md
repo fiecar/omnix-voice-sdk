@@ -192,8 +192,38 @@ ios/build-ios.sh
 # Produces build/ios-device/libbaresip.a and build/ios-sim/libbaresip.a
 ```
 
-CI: `.github/workflows/ios.yml` on `macos-14`.
+### XCFramework packaging (SDK-043)
 
+Version source: repo-root `VERSION` (currently `0.1.0`, aligned with Android AAR).
+
+```bash
+# [MACOS REQUIRED]
+chmod +x ios/build-xcframework.sh scripts/verify-xcframework.sh \
+  ios/consumer-smoke/build-consumer-smoke.sh
+ios/build-xcframework.sh
+# Produces:
+#   dist/OmnixVoiceSDK.xcframework
+#   dist/OmnixVoiceSDK-0.1.0.xcframework.zip
+#   dist/OmnixVoiceSDK-0.1.0.xcframework.zip.sha256
+#   dist/THIRD_PARTY_NOTICES.md (+ dist/LICENSES/)
+scripts/verify-xcframework.sh
+ios/consumer-smoke/build-consumer-smoke.sh
+```
+
+| Item | Value |
+|------|-------|
+| Product / module | **OmnixVoiceSDK** |
+| Slices | `ios-arm64` (device) + `ios-arm64-simulator` |
+| Min OS | **iOS 15.0** |
+| Public headers | `OmnixVoiceSDK.h` umbrella + `OmnixVoiceBridge.h` only |
+| Native deps | Folded into the framework binary (baresip/re/OpenSSL/omnix_voice static; not separate frameworks) |
+| Swift distribution | `-enable-library-evolution` + `.swiftinterface` (**BUILD_LIBRARY_FOR_DISTRIBUTION=YES** equivalent) |
+| Bitcode | **OFF** (current Apple toolchain; do not re-enable from old tutorials) |
+| Signing | Unsigned library/framework packaging in CI (no customer identity required to *create* the XCFramework) |
+
+**SBOM note:** `ios-cmake` is vendored and pinned in `SOURCE_MANIFEST.json`, but `SBOM.json` does not yet list it (still baresip/re/openssl/omnix-voice-sdk only). Regenerating SBOM is tracked as a follow-up inventory task — not silently faked during SDK-043.
+
+CI: `.github/workflows/ios.yml` on `macos-14` (native static job + XCFramework job).
 ## React Native
 
 **Gate H-1 — FROZEN (lead decision 2026-09-24):**
