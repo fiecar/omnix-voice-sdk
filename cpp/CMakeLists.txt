@@ -272,6 +272,7 @@ endif()
 
 option(OMNIX_BUILD_TESTS "Build native unit tests" OFF)
 if(OMNIX_BUILD_TESTS)
+  enable_testing()
   add_executable(test_log_redaction
     "${OMNIX_REPO_ROOT}/tests/native/test_log_redaction.c"
   )
@@ -433,6 +434,50 @@ if(OMNIX_BUILD_TESTS)
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
   )
   target_link_libraries(test_stun PRIVATE omnix_voice)
+
+  add_executable(test_error_mapping
+    "${OMNIX_REPO_ROOT}/tests/native/test_error_mapping.c"
+  )
+  target_include_directories(test_error_mapping PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_error_mapping PRIVATE omnix_voice)
+
+  add_executable(test_state_machine
+    "${OMNIX_REPO_ROOT}/tests/native/test_state_machine.c"
+  )
+  target_include_directories(test_state_machine PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_link_libraries(test_state_machine PRIVATE omnix_voice)
+
+  set(_omnix_native_tests
+    test_log_redaction
+    test_lifecycle
+    test_account
+    test_registration
+    test_registration_events
+    test_call_model
+    test_outgoing_call
+    test_incoming_call
+    test_answer_reject
+    test_hangup
+    test_mute
+    test_speaker
+    test_dtmf
+    test_hold
+    test_tls
+    test_srtp
+    test_codecs
+    test_stun
+    test_error_mapping
+    test_state_machine
+  )
+  foreach(_omnix_test IN LISTS _omnix_native_tests)
+    add_test(NAME ${_omnix_test} COMMAND ${_omnix_test})
+  endforeach()
 endif()
 
 # Helpful build summary

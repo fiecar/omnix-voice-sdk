@@ -255,7 +255,7 @@ jobs:
 
   # SDK-010/011/012/013/014/015/016: host unit tests (Linux canonical)
   native-host-tests:
-    name: Native host tests (lifecycle + log redaction + account + registration + events + call model + outgoing + mute + speaker + dtmf + hold + tls + srtp + codecs + stun)
+    name: Native host tests (ctest)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -267,82 +267,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build cmake build-essential libssl-dev zlib1g-dev
 
-      - name: Configure + build host native + tests
+      - name: Configure, build, and ctest host native tests
         run: |
-          cmake -S cpp -B build/host -G Ninja -DSTATIC=ON -DOMNIX_BUILD_TESTS=ON
-          cmake --build build/host --target omnix_voice test_log_redaction test_lifecycle test_account test_registration test_registration_events test_call_model test_outgoing_call test_incoming_call test_answer_reject test_hangup test_mute test_speaker test_dtmf test_hold test_tls test_srtp test_codecs test_stun -j"$(nproc)"
-
-      - name: Run log redaction unit test
-        run: |
-          ./build/host/test_log_redaction
-
-      - name: Run lifecycle unit test
-        run: |
-          ./build/host/test_lifecycle
-
-      - name: Run account model unit test
-        run: |
-          ./build/host/test_account
-
-      - name: Run registration unit test
-        run: |
-          ./build/host/test_registration
-
-      - name: Run registration events unit test
-        run: |
-          ./build/host/test_registration_events
-
-      - name: Run call model unit test
-        run: |
-          ./build/host/test_call_model
-
-      - name: Run outgoing call unit test
-        run: |
-          ./build/host/test_outgoing_call
-
-      - name: Run incoming call unit test
-        run: |
-          ./build/host/test_incoming_call
-
-      - name: Run answer/reject unit test
-        run: |
-          ./build/host/test_answer_reject
-
-      - name: Run hangup unit test
-        run: |
-          ./build/host/test_hangup
-
-      - name: Run mute unit test
-        run: |
-          ./build/host/test_mute
-
-      - name: Run speaker unit test
-        run: |
-          ./build/host/test_speaker
-
-      - name: Run DTMF unit test
-        run: |
-          ./build/host/test_dtmf
-
-      - name: Run hold/resume unit test
-        run: |
-          ./build/host/test_hold
-
-      - name: Run TLS unit test
-        run: |
-          ./build/host/test_tls
-
-      - name: Run SRTP unit test
-        run: |
-          ./build/host/test_srtp
-
-      - name: Run codecs unit test
-        run: |
-          ./build/host/test_codecs
-
-      - name: Run STUN unit test
-        run: |
-          ./build/host/test_stun
+          cmake -S tests/native -B build/tests -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/tests -j"$(nproc)"
+          ctest --test-dir build/tests --output-on-failure
 
       - name: API leakage check
         run: |
