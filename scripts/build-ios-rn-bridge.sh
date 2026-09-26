@@ -41,7 +41,7 @@ shopt -u nullglob
 sudo xcode-select -s "$best_app/Contents/Developer"
 xcodebuild -version
 
-WORK="$ROOT/build/ios-rn-host"
+WORK="$ROOT/react-native/ci-host"
 rm -rf "$WORK"
 mkdir -p "$WORK"
 
@@ -133,12 +133,6 @@ scheme.add_build_target(target)
 scheme.set_launch_target(target)
 scheme.save_as(project.path, 'OmnixRNCompile', true)
 RUBY
-
-# Codegen looks for an .xcodeproj inside the app package (react-native/).
-# CocoaPods integrates the real project next to the Podfile.
-ln -sfn "$WORK/OmnixRNCompile.xcodeproj" "$ROOT/react-native/OmnixRNCompile.xcodeproj"
-cleanup() { rm -f "$ROOT/react-native/OmnixRNCompile.xcodeproj"; }
-trap cleanup EXIT
 
 cd "$WORK"
 pod install
