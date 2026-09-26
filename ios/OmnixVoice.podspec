@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
 
   s.frameworks = "AVFoundation"
 
-  s.pod_target_xcconfig = {
+  xcconfig = {
     "DEFINES_MODULE" => "YES",
     "SWIFT_VERSION" => "5.0",
     "CLANG_ENABLE_OBJC_ARC" => "YES",
@@ -28,8 +28,8 @@ Pod::Spec.new do |s|
   sim_libs = File.expand_path("../build/ios-sim", __dir__)
   ssl_libs = File.expand_path("../build/openssl-ios/iphonesimulator-arm64/lib", __dir__)
   if File.directory?(sim_libs) && File.directory?(ssl_libs)
-    s.pod_target_xcconfig["LIBRARY_SEARCH_PATHS"] = "$(inherited) #{sim_libs} #{ssl_libs}"
-    s.pod_target_xcconfig["OTHER_LDFLAGS"] = [
+    xcconfig["LIBRARY_SEARCH_PATHS"] = "$(inherited) #{sim_libs} #{ssl_libs}"
+    xcconfig["OTHER_LDFLAGS"] = [
       "$(inherited)",
       "-ObjC",
       "-lc++",
@@ -49,4 +49,5 @@ Pod::Spec.new do |s|
       "-framework Network",
     ].join(" ")
   end
+  s.pod_target_xcconfig = xcconfig
 end
