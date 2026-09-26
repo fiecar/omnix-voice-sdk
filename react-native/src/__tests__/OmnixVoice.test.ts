@@ -310,4 +310,120 @@ describe('OmnixVoice', () => {
     expect(errors[0]?.message).not.toContain(SECRET);
     expect(consoleText()).not.toContain(SECRET);
   });
+
+  it('rejects calls before initialize and validates arguments', async () => {
+    await expect(OmnixVoice.register()).rejects.toMatchObject({
+      code: 'INVALID_CALL_STATE',
+    });
+    await expect(OmnixVoice.makeCall('   ')).rejects.toMatchObject({
+      code: 'INVALID_CALL_STATE',
+    });
+    await expect(
+      OmnixVoice.transferCall('  ', 'sip:other@example.com'),
+    ).rejects.toMatchObject({ code: 'INVALID_CONFIGURATION' });
+    expect(OmnixVoice.getCallInfo('missing')).toBeNull();
+    await OmnixVoice.shutdown();
+    expect(native().shutdown).not.toHaveBeenCalled();
+  });
+
+  it('forwards call controls and DTMF after registration', async () => {
+    await OmnixVoice.initialize(
+      sampleConfig({
+        authUser: 'auth-user',
+        displayName: 'Display',
+        stunServer: 'stun.example.com',
+        verifyCert: false,
+        enableSrtp: false,
+        codecs: ['pcmu', 'pcma', 'opus'],
+      }),
+    );
+    await OmnixVoice.register();
+    emit('omnixRegistrationStateChanged', { state: 'REGISTERED' });
+    await OmnixVoice.answerCall('call-1');
+    await OmnixVoice.rejectCall('call-1');
+    await OmnixVoice.hangupCall('call-1');
+    await OmnixVoice.holdCall('call-1');
+    await OmnixVoice.resumeCall('call-1');
+    await OmnixVoice.setMuted('call-1', true);
+    await OmnixVoice.setSpeakerEnabled(true);
+    await OmnixVoice.sendDTMF('call-1', 'a');
+    await OmnixVoice.unregister();
+
+    expect(native().register).toHaveBeenCalled();
+    expect(native().answerCall).toHaveBeenCalledWith('call-1');
+    expect(native().rejectCall).toHaveBeenCalledWith('call-1');
+    expect(native().hangupCall).toHaveBeenCalledWith('call-1');
+    expect(native().holdCall).toHaveBeenCalledWith('call-1');
+    expect(native().resumeCall).toHaveBeenCalledWith('call-1');
+    expect(native().setMuted).toHaveBeenCalledWith('call-1', true);
+    expect(native().setSpeakerEnabled).toHaveBeenCalledWith(true);
+    expect(native().sendDTMF).toHaveBeenCalledWith('call-1', 'A');
+    expect(native().unregister).toHaveBeenCalled();
+    expect(native().initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authUser: 'auth-user',
+        verifyCert: false,
+        enableSrtp: false,
+        codecs: 'pcmu,pcma,opus',
+      }),
+    );
+  });
+
+  it('rejects invalid DTMF, blank call ids, and a failed makeCall', async () => {
+    await OmnixVoice.initialize(sampleConfig());
+    emit('omnixRegistrationStateChanged', { state: 'REGISTERED' });
+    await expect(OmnixVoice.sendDTMF('call-1', '12')).rejects.toMatchObject({
+      code: 'INVALID_CONFIGURATION',
+    });
+    await expect(OmnixVoice.answerCall('  ')).rejects.toMatchObject({
+      code: 'INVALID_CONFIGURATION',
+    });
+    await expect(OmnixVoice.makeCall('  ')).rejects.toMatchObject({
+      code: 'INVALID_CONFIGURATION',
+    });
+    native().makeCall.mockResolvedValueOnce('');
+    await expect(OmnixVoice.makeCall('sip:peer@example.com')).rejects.toMatchObject(
+      { code: 'CALL_FAILED' },
+    );
+  });
+
+  it('keeps delivering events when one listener throws and ignores invalid payloads', async () => {
+    await OmnixVoice.initialize(sampleConfig());
+    const seen: string[] = [];
+    OmnixVoice.addListener('audioRouteChanged', () => {
+      throw new Error('host listener failed');
+    });
+    OmnixVoice.addListener('audioRouteChanged', (route) => {
+      seen.push(route);
+    });
+    emit('omnixAudioRouteChanged', { route: 'SPEAKER' });
+    emit('omnixAudioRouteChanged', { route: 'NOT_A_ROUTE' });
+    emit('omnixCallStateChanged', { callId: '' });
+    const errors: string[] = [];
+    OmnixVoice.addListener('error', (err) => {
+      errors.push(err.code);
+    });
+    emit('omnixIncomingCall', { nope: true });
+    expect(seen).toEqual(['SPEAKER']);
+    expect(errors).toContain('INTERNAL_NATIVE_ERROR');
+
+    emit('omnixCallStateChanged', {
+      callId: 'call-2',
+      peerUri: 'sip:peer@example.com',
+      state: 'CONNECTED',
+      isOutgoing: true,
+      isMuted: false,
+      isOnHold: false,
+      durationSeconds: 3,
+    });
+    expect(OmnixVoice.getCallInfo('call-2')?.state).toBe('CONNECTED');
+    expect(OmnixVoice.getCallInfo('call-2')?.durationSeconds).toBe(3);
+  });
+
+  it('rejects an empty codec list before calling native', async () => {
+    await expect(
+      OmnixVoice.initialize(sampleConfig({ codecs: [] })),
+    ).rejects.toMatchObject({ code: 'INVALID_CONFIGURATION' });
+    expect(native().initialize).not.toHaveBeenCalled();
+  });
 });
