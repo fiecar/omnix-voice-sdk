@@ -134,6 +134,12 @@ scheme.set_launch_target(target)
 scheme.save_as(project.path, 'OmnixRNCompile', true)
 RUBY
 
+# Codegen looks for an .xcodeproj inside the app package (react-native/).
+# CocoaPods integrates the real project next to the Podfile.
+ln -sfn "$WORK/OmnixRNCompile.xcodeproj" "$ROOT/react-native/OmnixRNCompile.xcodeproj"
+cleanup() { rm -f "$ROOT/react-native/OmnixRNCompile.xcodeproj"; }
+trap cleanup EXIT
+
 cd "$WORK"
 pod install
 xcodebuild \
