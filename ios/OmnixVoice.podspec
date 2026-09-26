@@ -9,7 +9,6 @@ Pod::Spec.new do |s|
   s.source       = { :git => "https://github.com/fiecar/omnix-voice-sdk.git", :tag => "v#{s.version}" }
   s.module_name  = "OmnixVoice"
   s.swift_version = "5.0"
-  s.static_framework = true
 
   s.source_files = "Sources/OmnixVoice/**/*.swift", "Sources/OmnixVoiceBridge/**/*.{h,m}"
   s.public_header_files = "Sources/OmnixVoiceBridge/**/*.h"
