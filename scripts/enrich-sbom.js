@@ -165,6 +165,15 @@ function main() {
       relatedSpdxElement: byName.openssl,
     });
   }
+  const runtime = new Set(["baresip", "re", "openssl"]);
+  for (const [name, spdxId] of Object.entries(byName)) {
+    if (runtime.has(name)) continue;
+    rels.push({
+      spdxElementId: spdxId,
+      relationshipType: "BUILD_TOOL_OF",
+      relatedSpdxElement: omnixId,
+    });
+  }
 
   // Guard: no false current deps (planned-but-absent only)
   const forbidden = ["libopus", "opus", "react-native", "react_native"];

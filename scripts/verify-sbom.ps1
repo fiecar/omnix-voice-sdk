@@ -114,6 +114,25 @@ if ($mo -and $mo.archiveSha256) {
     }
 }
 
+foreach ($c in @($manifest.components)) {
+    if (-not $c.archiveSha256) { continue }
+    $pkg = Find-Pkg ([string]$c.component)
+    if (-not $pkg) { Fail "Missing package $($c.component) (present in SOURCE_MANIFEST)" }
+    if ([string]$pkg.comment -notmatch [regex]::Escape([string]$c.commit)) {
+        Fail "$($c.component) commit SHA not recorded in SBOM package comment"
+    }
+    if ([string]$pkg.licenseConcluded -ne [string]$c.license) {
+        Fail "$($c.component) licenseConcluded must be $($c.license)"
+    }
+    $runtime = @('baresip', 're', 'openssl')
+    if ($runtime -notcontains [string]$c.component) {
+        $toolId = "SPDXRef-Package-$($c.component)"
+        if (-not (Has-Rel $toolId 'BUILD_TOOL_OF' 'SPDXRef-Package-omnix-voice-sdk')) {
+            Fail "Missing $toolId BUILD_TOOL_OF omnix-voice-sdk"
+        }
+    }
+}
+
 # No false current deps (planned-but-absent)
 foreach ($p in $packages) {
     $n = ([string]$p.name).ToLowerInvariant()
