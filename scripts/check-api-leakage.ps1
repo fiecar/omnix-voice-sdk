@@ -225,6 +225,26 @@ if (Test-Path -LiteralPath $tsDir) {
     }
 }
 
+# SDK-048+: React Native Android bridge (react-native/android).
+$rnAndroidDir = Join-Path $RepoRoot 'react-native/android'
+if (Test-Path -LiteralPath $rnAndroidDir) {
+    $rnKt = Get-ChildItem -LiteralPath $rnAndroidDir -Recurse -Filter '*.kt' -File
+    foreach ($kt in $rnKt) {
+        $lineNo = 0
+        foreach ($line in (Get-Content -LiteralPath $kt.FullName)) {
+            $lineNo++
+            if ($line -match 'MUST NOT|must never|Baresip/re|must not leak|No Baresip|Upstream SIP stack') {
+                continue
+            }
+            foreach ($pat in $tsForbidden) {
+                if ($line -match $pat) {
+                    $failures += "$($kt.FullName):${lineNo}: matched /$pat/ -> $line"
+                }
+            }
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "check-api-leakage: FAIL"
     $failures | ForEach-Object { Write-Host "  $_" }
