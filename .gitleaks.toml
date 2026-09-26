@@ -1,0 +1,24 @@
+# Gitleaks config for omnix-voice-sdk (SDK-058).
+# Default rules stay on. Each allowlist is narrow and explained.
+
+title = "omnix-voice-sdk"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Vendored OpenSSL tree. Hits are upstream test vectors, fuzz inputs, man-page examples, and known-answer constants, not Omnix credentials."
+paths = ['''third_party/openssl/''']
+
+[[allowlists]]
+description = "Upstream mock certificates used by re and baresip tests."
+paths = [
+  '''third_party/re/test/mock/cert\.c''',
+  '''third_party/baresip/test/mock/cert\.c''',
+]
+
+[[allowlists]]
+description = "Jest fixture. The constant exists so tests can assert the password is not copied into errors or events."
+condition = "AND"
+paths = ['''react-native/src/__tests__/OmnixVoice\.test\.ts''']
+regexes = ['''omnix-test-secret-9f3a''']

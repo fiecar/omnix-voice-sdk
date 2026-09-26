@@ -1,4 +1,4 @@
-# License scan (SDK-059). Trivy and Gitleaks are SDK-058.
+# License scan (SDK-059) plus Trivy and Gitleaks (SDK-058).
 name: security
 
 on:
@@ -22,3 +22,53 @@ jobs:
 
       - name: Scan vendored licenses
         run: bash scripts/check-licenses.sh
+
+  trivy:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan filesystem
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          version: v0.74.0
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          format: sarif
+          output: trivy-results.sarif
+          skip-dirs: node_modules,build,.gradle
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan git history
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_VERSION: 8.30.1
