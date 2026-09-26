@@ -96,6 +96,20 @@ jobs:
           ios/build-ios-swift.sh
           test -f build/ios-swift/libOmnixVoice.dylib
 
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install React Native package dependencies
+        working-directory: react-native
+        run: npm ci
+
+      - name: Compile iOS React Native bridge (SDK-049)
+        run: |
+          chmod +x scripts/build-ios-rn-bridge.sh
+          scripts/build-ios-rn-bridge.sh
+
       - name: Upload iOS native artifacts (static libs)
         uses: actions/upload-artifact@v4
         with:
