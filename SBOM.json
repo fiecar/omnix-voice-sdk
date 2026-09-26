@@ -85,6 +85,26 @@
       ],
       "homepage": "https://github.com/openssl/openssl",
       "comment": "vendored commit f4dc4d58b48d346a8270183f89acf826d459b0ca"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ios-cmake",
+      "name": "ios-cmake",
+      "versionInfo": "4.6.0",
+      "downloadLocation": "https://github.com/leetal/ios-cmake/archive/cfaac240732eadc1a42d1869f606db2b96a8b09d.tar.gz",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "supplier": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/ios-cmake@cfaac240732eadc1a42d1869f606db2b96a8b09d?vcs_url=https%3A%2F%2Fgithub.com%2Fleetal%2Fios-cmake"
+        }
+      ],
+      "homepage": "https://github.com/leetal/ios-cmake",
+      "comment": "vendored commit cfaac240732eadc1a42d1869f606db2b96a8b09d"
     }
   ],
   "relationships": [
@@ -107,6 +127,11 @@
       "spdxElementId": "SPDXRef-Package-omnix-voice-sdk",
       "relationshipType": "DEPENDS_ON",
       "relatedSpdxElement": "SPDXRef-Package-openssl"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-ios-cmake",
+      "relationshipType": "BUILD_TOOL_OF",
+      "relatedSpdxElement": "SPDXRef-Package-omnix-voice-sdk"
     }
   ]
 }

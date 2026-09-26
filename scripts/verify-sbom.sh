@@ -65,6 +65,24 @@ if (mo && mo.archiveSha256) {
     console.error("verify-sbom: missing omnix DEPENDS_ON openssl"); process.exit(1);
   }
 }
+const runtime = new Set(["baresip", "re", "openssl"]);
+for (const c of manifest.components || []) {
+  if (!c.archiveSha256) continue;
+  const pkg = find(c.component);
+  if (!pkg) { console.error("verify-sbom: missing", c.component); process.exit(1); }
+  if (!String(pkg.comment || "").includes(c.commit)) {
+    console.error("verify-sbom: commit", c.component); process.exit(1);
+  }
+  if (pkg.licenseConcluded !== c.license) {
+    console.error("verify-sbom: license", c.component); process.exit(1);
+  }
+  if (!runtime.has(c.component)) {
+    const toolId = `SPDXRef-Package-${c.component}`;
+    if (!has(toolId, "BUILD_TOOL_OF", "SPDXRef-Package-omnix-voice-sdk")) {
+      console.error("verify-sbom: missing BUILD_TOOL_OF", c.component); process.exit(1);
+    }
+  }
+}
 for (const p of packages) {
   const n = String(p.name).toLowerCase();
   for (const bad of ["libopus", "opus", "react-native", "react_native"]) {
