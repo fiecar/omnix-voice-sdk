@@ -17,6 +17,30 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 node "$ROOT/scripts/verify-rn-ios-bridge.mjs"
 
+# RN 0.87 refuses Xcode older than 16.1. macos-14 may default to 15.4
+# while a newer Xcode.app is installed beside it.
+best_app=""
+best_num=0
+shopt -s nullglob
+for app in /Applications/Xcode*.app; do
+  ver="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo 0)"
+  major="${ver%%.*}"
+  rest="${ver#*.}"
+  minor="${rest%%.*}"
+  [[ "$major" =~ ^[0-9]+$ ]] || major=0
+  [[ "$minor" =~ ^[0-9]+$ ]] || minor=0
+  num=$((major * 100 + minor))
+  echo "build-ios-rn-bridge: Xcode candidate $app version $ver"
+  if (( num >= 1601 && num > best_num )); then
+    best_app="$app"
+    best_num=$num
+  fi
+done
+shopt -u nullglob
+[[ -n "$best_app" ]] || fail "React Native 0.87 needs Xcode >= 16.1 and none is installed on this runner"
+sudo xcode-select -s "$best_app/Contents/Developer"
+xcodebuild -version
+
 WORK="$ROOT/build/ios-rn-host"
 rm -rf "$WORK"
 mkdir -p "$WORK"
