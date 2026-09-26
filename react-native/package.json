@@ -10,6 +10,7 @@
     "android",
     "ios",
     "omnix-voice-sdk.podspec",
+    "react-native.config.js",
     "THIRD_PARTY_NOTICES.md",
     "!android/maven/**/.gitkeep",
     "!**/__tests__",

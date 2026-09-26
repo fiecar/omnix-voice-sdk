@@ -166,4 +166,18 @@ if [[ -d "$TS_DIR" ]]; then
   done < <(find "$TS_DIR" -type f -name '*.ts' -print0)
 fi
 
+# SDK-048+: React Native Android bridge sources.
+RN_ANDROID="$ROOT/react-native/android"
+if [[ -d "$RN_ANDROID" ]]; then
+  while IFS= read -r -d '' kt; do
+    for pat in "${TS_PATTERNS[@]}"; do
+      if grep -Eni "$pat" "$kt" | grep -Ev 'MUST NOT|must never|Baresip/re|must not leak|No Baresip|Upstream SIP stack' >/dev/null; then
+        echo "check-api-leakage: matched /$pat/ in $kt" >&2
+        grep -Eni "$pat" "$kt" >&2 || true
+        fail "API leakage in $kt"
+      fi
+    done
+  done < <(find "$RN_ANDROID" -type f -name '*.kt' -print0)
+fi
+
 echo "check-api-leakage: PASS"

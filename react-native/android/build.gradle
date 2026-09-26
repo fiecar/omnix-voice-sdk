@@ -1,5 +1,6 @@
-// Omnix Voice React Native Android library (SDK-046 bootstrap).
+// Omnix Voice React Native Android library (SDK-046 / SDK-048).
 // Consumes the Omnix AAR from the bundled local Maven repo (no files('*.aar')).
+// Host app provides AGP, Kotlin, and the React Native Gradle plugin (RN 0.87).
 
 buildscript {
   ext {
@@ -8,9 +9,17 @@ buildscript {
 }
 
 apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+// New Architecture codegen: generates NativeOmnixVoiceSpec before Java compile.
+apply plugin: "com.facebook.react"
 
 def safeExtGet(prop, fallback) {
   rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+react {
+  libraryName = "OmnixVoiceSpec"
+  codegenJavaPackageName = "com.omnix.voice.rn"
 }
 
 android {
@@ -21,6 +30,15 @@ android {
     minSdkVersion safeExtGet("minSdkVersion", 26)
     targetSdkVersion safeExtGet("targetSdkVersion", 36)
     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", "true"
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
   }
 
   sourceSets {
