@@ -191,6 +191,40 @@ if (Test-Path -LiteralPath $swiftDir) {
     }
 }
 
+# SDK-047+: TypeScript sources under react-native/src (public API + codegen spec).
+$tsDir = Join-Path $RepoRoot 'react-native/src'
+$tsForbidden = @(
+    '(?i)\bbaresip\b',
+    '(?i)\bre\.h\b',
+    '(?i)\bstruct\s+ua\b',
+    '(?i)\bstruct\s+call\b',
+    '(?i)\bstruct\s+account\b',
+    '\bre_',
+    '\bmem_alloc\b',
+    '\bmem_deref\b',
+    '(?i)\bjni\b',
+    '(?i)\bNSError\b',
+    '(?i)\bJavaVM\b'
+)
+
+if (Test-Path -LiteralPath $tsDir) {
+    $tsFiles = Get-ChildItem -LiteralPath $tsDir -Recurse -Filter '*.ts' -File
+    foreach ($ts in $tsFiles) {
+        $lineNo = 0
+        foreach ($line in (Get-Content -LiteralPath $ts.FullName)) {
+            $lineNo++
+            if ($line -match 'MUST NOT|must never|Baresip/re|must not leak|No Baresip') {
+                continue
+            }
+            foreach ($pat in $tsForbidden) {
+                if ($line -match $pat) {
+                    $failures += "$($ts.FullName):${lineNo}: matched /$pat/ -> $line"
+                }
+            }
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "check-api-leakage: FAIL"
     $failures | ForEach-Object { Write-Host "  $_" }
