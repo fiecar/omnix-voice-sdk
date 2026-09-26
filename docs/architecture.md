@@ -32,7 +32,7 @@ flowchart TD
   baresip --> re
 ```
 
-The iOS React Native adapter is not in the tree yet (SDK-049).
+The iOS React Native adapter source is in `react-native/ios`. It calls the public Swift `OmnixVoice` API. The macOS CI job compiles that adapter inside a small React Native host. That compile is not an XCFramework and not a physical iPhone run.
 The iOS Swift facade and Objective-C bridge sources are IMPLEMENTED.
 Packaging them as `OmnixVoiceSDK.xcframework` is BLOCKED (SDK-043).
 
@@ -44,6 +44,7 @@ Packaging them as `OmnixVoiceSDK.xcframework` is BLOCKED (SDK-043).
 | Android TurboModule | IMPLEMENTED in source. Compiling it inside a React Native Android host is NOT YET VERIFIED. |
 | Android Kotlin API and JNI | IMPLEMENTED |
 | iOS Swift API | IMPLEMENTED as source |
+| iOS React Native adapter | IMPLEMENTED as source. macOS CI compiles it. Not an XCFramework. |
 | iOS XCFramework | BLOCKED |
 | C facade | IMPLEMENTED. Host unit tests run in Linux CI via `ctest` (`tests/native`). |
 | Real SIP | NOT AVAILABLE |

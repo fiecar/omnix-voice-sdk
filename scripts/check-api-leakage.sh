@@ -180,4 +180,33 @@ if [[ -d "$RN_ANDROID" ]]; then
   done < <(find "$RN_ANDROID" -type f -name '*.kt' -print0)
 fi
 
+# SDK-049+: React Native iOS bridge. Must call the Swift/ObjC Omnix API only.
+RN_IOS="$ROOT/react-native/ios"
+if [[ -d "$RN_IOS" ]]; then
+  RN_IOS_PATTERNS=(
+    'baresip\.h'
+    '[[:space:]]re\.h'
+    'struct[[:space:]]+ua'
+    'struct[[:space:]]+call'
+    'struct[[:space:]]+account'
+    'mem_alloc'
+    'mem_deref'
+  )
+  while IFS= read -r -d '' src; do
+    if grep -Eiq '^\s*#\s*include\s*[<"]baresip\.h[>"]' "$src"; then
+      fail "$src includes baresip.h"
+    fi
+    if grep -Eiq '^\s*#\s*include\s*[<"]re\.h[>"]' "$src"; then
+      fail "$src includes re.h"
+    fi
+    for pat in "${RN_IOS_PATTERNS[@]}"; do
+      if grep -Eni "$pat" "$src" | grep -Ev 'MUST NOT|must not|upstream SIP|no Baresip' >/dev/null; then
+        echo "check-api-leakage: matched /$pat/ in $src" >&2
+        grep -Eni "$pat" "$src" >&2 || true
+        fail "API leakage in $src"
+      fi
+    done
+  done < <(find "$RN_IOS" -type f \( -name '*.h' -o -name '*.m' -o -name '*.mm' -o -name '*.swift' \) -print0)
+fi
+
 echo "check-api-leakage: PASS"
