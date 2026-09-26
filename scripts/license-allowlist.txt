@@ -1,0 +1,6 @@
+# Non-shipped paths. These files are not compiled into libomnixvoice.so
+# or the iOS static libraries. A match here is not a shipped-copyleft failure.
+# One repo-relative prefix per line.
+
+# OpenSSL build-time Perl tooling (Text-Template). Not linked into libcrypto/libssl.
+third_party/openssl/external/
