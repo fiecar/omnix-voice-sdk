@@ -1,7 +1,7 @@
 /**
  * TurboModule codegen spec for Omnix Voice (New Architecture only).
  * Module name must match native: OmnixVoiceModule.
- * Full TS facade lands in SDK-047; this file is the codegen contract (SDK-046).
+ * Codegen contract only (SDK-046). The public facade is index.ts (SDK-047).
  *
  * Placeholders only — never embed real SIP credentials.
  */

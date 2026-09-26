@@ -139,4 +139,31 @@ if [[ -d "$SWIFT_DIR" ]]; then
   done < <(find "$SWIFT_DIR" -maxdepth 1 -type f -name '*.swift' -print0)
 fi
 
+# SDK-047+: TypeScript sources (react-native/src).
+TS_DIR="$ROOT/react-native/src"
+if [[ -d "$TS_DIR" ]]; then
+  TS_PATTERNS=(
+    '\bbaresip\b'
+    '\bre\.h\b'
+    'struct[[:space:]]+ua\b'
+    'struct[[:space:]]+call\b'
+    'struct[[:space:]]+account\b'
+    '\bre_'
+    '\bmem_alloc\b'
+    '\bmem_deref\b'
+    '\bjni\b'
+    '\bNSError\b'
+    '\bJavaVM\b'
+  )
+  while IFS= read -r -d '' ts; do
+    for pat in "${TS_PATTERNS[@]}"; do
+      if grep -Eni "$pat" "$ts" | grep -Ev 'MUST NOT|must never|Baresip/re|must not leak|No Baresip' >/dev/null; then
+        echo "check-api-leakage: matched /$pat/ in $ts" >&2
+        grep -Eni "$pat" "$ts" >&2 || true
+        fail "API leakage in $ts"
+      fi
+    done
+  done < <(find "$TS_DIR" -type f -name '*.ts' -print0)
+fi
+
 echo "check-api-leakage: PASS"
