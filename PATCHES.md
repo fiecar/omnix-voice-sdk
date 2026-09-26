@@ -14,3 +14,12 @@ Placeholder — records every approved patch applied under `third_party/`.
 ## Patch log
 
 _None yet._
+
+### Entry template
+
+```
+### <component> — <short reason>
+- Issue / PR:
+- Files:
+- Upstreamed: no | yes (<link>)
+```

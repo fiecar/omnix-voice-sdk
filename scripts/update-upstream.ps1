@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-  Skeleton wrapper around import-upstream for documented upstream updates.
+  Lead-approved upstream update: import-upstream, then verify-third-party.
 
 .DESCRIPTION
   Does NOT choose versions. Caller (or lead) must already edit
@@ -30,6 +30,14 @@ if (-not (Test-Path -LiteralPath $import)) {
 }
 
 Write-Host "update-upstream: delegating to import-upstream for component=$Component"
-Write-Host "update-upstream: ensure SOURCE_MANIFEST.json was edited first (Issue #1 section 13)"
+Write-Host "update-upstream: ensure SOURCE_MANIFEST.json was edited and lead-approved first (Issue #1 section 0.3 / 13)"
 & $import -Component $Component
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$verify = Join-Path $here 'verify-third-party.ps1'
+if (-not (Test-Path -LiteralPath $verify)) {
+    [Console]::Error.WriteLine("update-upstream: missing $verify")
+    exit 1
+}
+& $verify
 exit $LASTEXITCODE
