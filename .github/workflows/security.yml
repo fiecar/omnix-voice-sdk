@@ -1,0 +1,24 @@
+# License scan (SDK-059). Trivy and Gitleaks are SDK-058.
+name: security
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  licenses:
+    name: License scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Scan vendored licenses
+        run: bash scripts/check-licenses.sh
