@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Skeleton wrapper around import-upstream for documented upstream updates.
+# Lead-approved upstream update: import-upstream, then verify-third-party.
 # Semantics match scripts/update-upstream.ps1.
 # Does NOT choose versions — edit SOURCE_MANIFEST.json first (Issue #1 §13).
 set -euo pipefail
@@ -23,5 +23,9 @@ IMPORT="$ROOT/scripts/import-upstream.sh"
 [[ -x "$IMPORT" ]] || chmod +x "$IMPORT"
 
 echo "update-upstream: delegating to import-upstream for component=$COMPONENT"
-echo "update-upstream: ensure SOURCE_MANIFEST.json was edited first (Issue #1 section 13)"
-exec "$IMPORT" "$COMPONENT"
+echo "update-upstream: ensure SOURCE_MANIFEST.json was edited and lead-approved first (Issue #1 section 0.3 / 13)"
+"$IMPORT" "$COMPONENT"
+VERIFY="$ROOT/scripts/verify-third-party.sh"
+[[ -f "$VERIFY" ]] || fail "missing $VERIFY"
+[[ -x "$VERIFY" ]] || chmod +x "$VERIFY"
+"$VERIFY"
