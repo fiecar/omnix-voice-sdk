@@ -20,7 +20,7 @@ Pod::Spec.new do |s|
     "SWIFT_VERSION" => "5.0",
     "CLANG_ENABLE_OBJC_ARC" => "YES",
     "HEADER_SEARCH_PATHS" => "$(inherited) $(PODS_TARGET_SRCROOT)/Sources/OmnixVoiceBridge $(PODS_TARGET_SRCROOT)/../cpp/include",
-    "SWIFT_OBJC_BRIDGING_HEADER" => "$(PODS_TARGET_SRCROOT)/Sources/OmnixVoice/OmnixVoice-Bridging-Header.h"
+    "OTHER_SWIFT_FLAGS" => "$(inherited) -import-objc-header $(PODS_TARGET_SRCROOT)/Sources/OmnixVoice/OmnixVoice-Bridging-Header.h"
   }
 
   # Static libraries produced by the iOS CI job. Absent until that job has run.
